@@ -57,6 +57,37 @@ server.registerTool(
     },
   },
   async ({ query }) => {
+    // リモートモード: サーバーの /api/cases/search を叩いて Inngest ジョブを開始
+    if (SERVER_URL) {
+      const res = await fetch(`${SERVER_URL.replace(/\/$/, "")}/api/cases/search`, {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({ query }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `サーバーへの事例調査ジョブ投入に失敗しました。\nHTTP ${res.status}: ${text}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const data = (await res.json()) as { runId: string };
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `サーバー上で事例調査を開始しました。バックグラウンドで事例を収集しています。\n完了したら「結果を教えて」や「事例の結果は？」と聞いてください。\n\nrunId: ${data.runId}`,
+          },
+        ],
+      };
+    }
+
+    // ローカルモード: 直接 Inngest Dev へイベント送信
     const runId = randomUUID();
     await inngest.send({
       name: "cases/search",
@@ -138,9 +169,10 @@ server.registerTool(
     // completed: リモートの場合はサーバーの Excel URL、ローカルで未生成なら MCP で生成
     const cases = state.cases ?? [];
     const axes = state.axes ?? [];
-    let excelDisplay = "";
+    let fileDisplay = "";
     if (SERVER_URL) {
-      excelDisplay = `Excel: ${SERVER_URL.replace(/\/$/, "")}/api/runs/${runId}/excel`;
+      const base = SERVER_URL.replace(/\/$/, "");
+      fileDisplay = `CSV: ${base}/api/runs/${runId}/csv`;
     } else {
       let excelPath = state.excelPath ?? "";
       if (!excelPath && cases.length > 0 && axes.length > 0) {
@@ -151,7 +183,7 @@ server.registerTool(
           console.error("Excel generation failed:", e);
         }
       }
-      excelDisplay = excelPath ? `Excel: file://${excelPath}` : "（Excel は生成されていません）";
+      fileDisplay = excelPath ? `Excel: file://${excelPath}` : "（Excel は生成されていません）";
     }
 
     const summaryText = [
@@ -160,7 +192,7 @@ server.registerTool(
       `事例数: ${cases.length} 件`,
       `軸: ${axes.map((a) => a.name).join(", ")}`,
       "",
-      excelDisplay,
+      fileDisplay,
       "",
       "### サマリー（軸別）",
       ...axes.map(

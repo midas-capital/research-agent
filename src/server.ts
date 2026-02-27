@@ -7,6 +7,7 @@ import "dotenv/config";
 import express from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { serve } from "inngest/express";
 import { inngest } from "./inngest/client.js";
 import { caseStudySearch, caseStudySupplement } from "./inngest/functions/case-study.js";
@@ -25,6 +26,27 @@ function checkApiKey(req: express.Request, res: express.Response, next: express.
 }
 
 app.use(express.json());
+
+// 事例調査ジョブを開始する API（サーバー側で Inngest にイベント送信）
+app.post("/api/cases/search", checkApiKey, async (req, res) => {
+  try {
+    const query = String((req.body?.query ?? "") as string).trim();
+    if (!query) {
+      return res.status(400).json({ error: "query is required" });
+    }
+
+    const runId = randomUUID();
+    await inngest.send({
+      name: "cases/search",
+      data: { runId, query },
+    });
+
+    res.status(202).json({ runId });
+  } catch (err) {
+    console.error("Failed to start case study search", err);
+    res.status(500).json({ error: "Failed to start search" });
+  }
+});
 
 app.use(
   "/api/inngest",
@@ -77,6 +99,48 @@ app.get("/api/runs/:runId/excel", checkApiKey, async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="cases-${runId}.xlsx"`);
   const buf = await fs.readFile(excelPath);
   res.send(buf);
+});
+
+// CSV をその場で生成して返す API（全事例シート相当）
+app.get("/api/runs/:runId/csv", checkApiKey, async (req, res) => {
+  const runId = String(req.params.runId ?? "");
+  const state = await readRunState(runId);
+  if (!state || !state.cases) return res.status(404).json({ error: "Run not found" });
+
+  const header = [
+    "axis",
+    "category",
+    "company",
+    "challenge",
+    "solution",
+    "effect",
+    "url",
+    "duplicate",
+  ];
+
+  const escape = (value: string | undefined): string => {
+    const v = (value ?? "").replace(/"/g, '""');
+    return `"${v}"`;
+  };
+
+  const rows = state.cases.map((c) =>
+    [
+      escape(c.axisName),
+      escape(c.categoryName),
+      escape(c.companyName),
+      escape(c.challenge),
+      escape(c.solution),
+      escape(c.effect),
+      escape(c.url),
+      escape((c as any).duplicateOf ? "duplicate" : ""),
+    ].join(",")
+  );
+
+  const csv = [header.join(","), ...rows].join("\n");
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="cases-${runId}.csv"`);
+  res.send(csv);
 });
 
 app.listen(port, () => {

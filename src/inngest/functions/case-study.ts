@@ -8,7 +8,6 @@ import { fetchHtmlBatch } from "../../lib/fetch-html.js";
 import { htmlToStructuredJson } from "../../lib/html-to-json.js";
 import { screenAndStructure } from "../../lib/screen-structure.js";
 import { flagDuplicates } from "../../lib/dedup.js";
-import { writeExcel } from "../../lib/excel.js";
 import type { Axis, CaseItem, SearchResultItem } from "../../types.js";
 
 const TARGET_COUNT = config.maxCasesTarget;
@@ -147,15 +146,13 @@ export const caseStudySupplement = inngest.createFunction(
     if (cases.length >= TARGET_COUNT || round > MAX_SUPPLEMENT) {
       await step.run("finalize", async () => {
         const deduped = flagDuplicates(cases);
-        const excelPath = await writeExcel(runId, axes, deduped);
         await writeRunState({
           ...state,
           status: "completed",
           cases: deduped,
-          excelPath,
           completedAt: new Date().toISOString(),
         });
-        return { excelPath, count: deduped.length };
+        return { count: deduped.length };
       });
       return { runId, status: "completed", count: cases.length };
     }
@@ -180,15 +177,13 @@ export const caseStudySupplement = inngest.createFunction(
     if (underperforming.length === 0) {
       await step.run("finalize-no-supplement", async () => {
         const deduped = flagDuplicates(cases);
-        const excelPath = await writeExcel(runId, axes, deduped);
         await writeRunState({
           ...state,
           status: "completed",
           cases: deduped,
-          excelPath,
           completedAt: new Date().toISOString(),
         });
-        return { excelPath, count: deduped.length };
+        return { count: deduped.length };
       });
       return { runId, status: "completed" };
     }
@@ -259,15 +254,13 @@ export const caseStudySupplement = inngest.createFunction(
     if (merged.length >= TARGET_COUNT || round >= MAX_SUPPLEMENT) {
       await step.run("finalize-after-supplement", async () => {
         const deduped = flagDuplicates(merged);
-        const excelPath = await writeExcel(runId, axes, deduped);
         await writeRunState({
           ...state,
           status: "completed",
           cases: deduped,
-          excelPath,
           completedAt: new Date().toISOString(),
         });
-        return { excelPath, count: deduped.length };
+        return { count: deduped.length };
       });
       return { runId, status: "completed", count: merged.length };
     }
