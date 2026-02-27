@@ -1,0 +1,30 @@
+{
+  "name": "research-agent",
+  "version": "1.0.0",
+  "description": "事例調査エージェント - Case study research agent with Claude Desktop, MCP, and Inngest",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "mcp": "node dist/mcp-server.js",
+    "mcp:dev": "tsx src/mcp-server.ts",
+    "inngest:dev": "npx inngest-cli@latest dev"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.1",
+    "inngest": "^3.28.0",
+    "serpapi": "^2.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

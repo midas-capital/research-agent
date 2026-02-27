@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+data/
+output/
+*.xlsx
+*.log
+.DS_Store
