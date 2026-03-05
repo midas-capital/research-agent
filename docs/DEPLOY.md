@@ -4,21 +4,67 @@
 
 ---
 
+## 完全クラウド移行（ローカル不要）
+
+**ローカルで `npm run dev` / `npm run inngest:dev` を一切動かさず、すべて Render + Inngest Cloud で完結させる**手順です。
+
+### 役割の整理
+
+| 役割 | どこで動く | 必要なもの |
+|------|------------|------------|
+| イベント送信 | **Render 上のサーバー**（`POST /api/cases/search` が `inngest.send()` する） | Render に `INNGEST_EVENT_KEY` |
+| ジョブ実行 | **Inngest Cloud** が Render の `/api/inngest` を呼ぶ | Render に `INNGEST_SIGNING_KEY`、Inngest に Serve URL 登録 |
+| 結果取得 | Claude → MCP → **Render の `/api/runs/*`** | MCP には **サーバー URL だけ**（`INNGEST_EVENT_KEY` は不要） |
+
+**重要**: Claude / MCP の環境変数に `INNGEST_EVENT_KEY` を**入れない**でください。イベントはサーバー（Render）だけが送ります。
+
+### 完全クラウド移行チェックリスト
+
+- [ ] **Render** の環境変数に `INNGEST_EVENT_KEY` と `INNGEST_SIGNING_KEY` を設定（Inngest の App → Settings → Event Keys / Signing Key）
+- [ ] **Inngest** のアプリで Serve URL を `https://<Renderのドメイン>/api/inngest` に設定
+- [ ] **Claude** の MCP の `env` には `RESEARCH_AGENT_SERVER_URL` のみ（`INNGEST_EVENT_KEY` は入れない）
+- [ ] ローカルでは `npm run dev` / `npm run inngest:dev` を**起動しない**
+
+### バックグラウンドの動き
+
+「バックグラウンド」で動くのは**別プロセスではなく、Inngest Cloud があなたのサーバーを呼び出す仕組み**です。
+
+1. **きっかけ**  
+   Claude が「事例調査して」→ MCP が `POST /api/cases/search` を Render に送る。
+
+2. **即レス**  
+   Render のサーバーは `runId` を生成し、`inngest.send("cases/search", { runId, query })` で Inngest Cloud にイベントを送ってから、すぐに `202 { runId }` を返す。この時点では**重い処理はまだ実行していない**。
+
+3. **ジョブの実行（＝ここがバックグラウンド）**  
+   Inngest Cloud がイベントを受け取ると、**後から**あなたのサーバーに  
+   `POST https://<Renderのドメイン>/api/inngest`  
+   を送る。Render 上の**同じ Web サービス（同じ Node プロセス）**がこのリクエストを受け、Inngest の関数（軸生成・検索・選別・構造化・補足検索など）を**そのリクエスト処理のなかで**実行する。
+
+4. **結果**  
+   実行中に RunState が `DATA_DIR` に保存され、完了後は `GET /api/runs/:runId/csv` で CSV を取得できる。
+
+**まとめ**:  
+- **別の「バックグラウンド用サーバー」は立てていない**。  
+- バックグラウンド＝「ユーザーリクエストとは別のタイミングで、Inngest Cloud が Render の `/api/inngest` を呼び、同じアプリが重い処理を実行する」動き。  
+- Render の Free プランではアイドル時にスリープするため、Inngest が呼んだタイミングで**コールドスタート**が入ることがある。
+
+---
+
 ## 全体像
 
-1. **サーバー**に Express + Inngest をデプロイする（あなたが1台用意）
-2. **Inngest Cloud** にアプリを登録し、ジョブをサーバーに送る
-3. **使う人**は各自の Claude Desktop の MCP に「サーバー URL」と「Inngest のイベントキー」だけ設定する
+1. **サーバー**に Express + Inngest をデプロイする（Render など）
+2. **Inngest Cloud** にアプリを登録し、Serve URL をサーバーの `/api/inngest` に設定
+3. **使う人**は Claude Desktop の MCP に「サーバー URL」だけ設定（Event Key はサーバー側のみ）
 
 ---
 
 ## 1. Inngest Cloud の準備
 
 1. [Inngest](https://www.inngest.com/) にサインアップ
-2. **Create App** で新しいアプリを作成
-3. **Event key** をコピー（MCP がイベントを送る時に使う）
-4. **Signing key** をコピー（サーバーの環境変数 `INNGEST_SIGNING_KEY` に設定）
-5. **Sync** または **App URL** に、あとでデプロイする URL を登録（例: `https://your-app.railway.app`）
+2. **Create App** で新しいアプリを作成（または既存の `research-agent`）
+3. **Event key** をコピー → **Render の環境変数 `INNGEST_EVENT_KEY` にだけ**入れる（MCP には入れない）
+4. **Signing key** をコピー → Render の環境変数 `INNGEST_SIGNING_KEY` に設定
+5. アプリの **Serve URL** を `https://あなたのRenderドメイン/api/inngest` に設定（例: `https://research-agent-xxx.onrender.com/api/inngest`）
 
 ---
 
@@ -30,11 +76,13 @@
 |------|------|------|
 | `ANTHROPIC_API_KEY` | ✅ | Anthropic API キー |
 | `SERPAPI_API_KEY` | ✅ | SerpAPI キー |
-| `INNGEST_SIGNING_KEY` | ✅ | Inngest の Signing key（Cloud で表示） |
-| `APP_URL` | ✅ | デプロイ後の URL（例: `https://xxx.railway.app`） |
+| `INNGEST_EVENT_KEY` | ✅ | Inngest Cloud の Event key（サーバーが `inngest.send()` する時に使用） |
+| `INNGEST_SIGNING_KEY` | ✅ | Inngest Cloud の Signing key（Cloud が `/api/inngest` を呼ぶ時の検証用） |
+| `APP_URL` | ✅ | デプロイ後の URL（例: `https://xxx.onrender.com`） |
 | `PORT` | - | 多くの PaaS が自動設定。未設定時は 3000 |
+| `DATA_DIR` | - | 省略可。例: `/app/data`（RunState の保存先） |
+| `OUTPUT_DIR` | - | 省略可。例: `/app/output`（Excel を使う場合。現在は CSV のみなら未使用でも可） |
 | `RESEARCH_AGENT_API_KEY` | - | 任意。設定すると `/api/runs/*` に API キー必須 |
-| `DATA_DIR` / `OUTPUT_DIR` | - | 省略可。永続ボリュームのパスを指定する場合 |
 
 **重要**: `data` と `output` は**永続化**が必要です。再デプロイや再起動で消えないように、各サービスの「ボリューム」や「永続ディスク」をマウントしてください。
 
@@ -100,7 +148,7 @@ docker run -d --name research-agent -p 3000:3000 \
 **ターミナルは起動しません。** 各自の Claude Desktop の MCP 設定だけ行います。
 
 1. **Claude Desktop** → 設定 → Developer → **Edit config**
-2. `claude_desktop_config.json` に以下を追加（`research-agent` のサーバー利用用）
+2. `claude_desktop_config.json` に以下を追加（**完全クラウド運用**用）
 
 ```json
 {
@@ -109,8 +157,7 @@ docker run -d --name research-agent -p 3000:3000 \
       "command": "npx",
       "args": ["tsx", "/path/to/research-agent/src/mcp-server.ts"],
       "env": {
-        "RESEARCH_AGENT_SERVER_URL": "https://your-app.railway.app",
-        "INNGEST_EVENT_KEY": "your-inngest-event-key",
+        "RESEARCH_AGENT_SERVER_URL": "https://your-app.onrender.com",
         "RESEARCH_AGENT_API_KEY": "optional-if-server-requires"
       }
     }
@@ -118,9 +165,9 @@ docker run -d --name research-agent -p 3000:3000 \
 }
 ```
 
-- **RESEARCH_AGENT_SERVER_URL**: デプロイしたサーバーの URL（`https://...`）
-- **INNGEST_EVENT_KEY**: Inngest の Event key（ジョブを送るために必要）
-- **RESEARCH_AGENT_API_KEY**: サーバーで API キーを設定している場合のみ
+- **RESEARCH_AGENT_SERVER_URL**: デプロイしたサーバーの URL（`https://...`）のみ必須。  
+  **INNGEST_EVENT_KEY は入れない**（イベント送信はサーバー側のみ）。
+- **RESEARCH_AGENT_API_KEY**: サーバーで API キーを要求している場合のみ同じ値を設定。
 
 **注意**: 各自の PC にこのリポジトリ（少なくとも `src/mcp-server.ts` と依存関係）が必要です。  
 または、MCP サーバーだけを npm パッケージ化して `npx research-agent-mcp` のように配布する方法もあります。
@@ -134,12 +181,15 @@ docker run -d --name research-agent -p 3000:3000 \
 1. 誰かの Claude Desktop で「製造業のDX事例を調査して」と入力
 2. 「調査を開始しました」と返る
 3. 1〜2分後に「結果を教えて」と入力
-4. サマリーと Excel のダウンロード URL が返れば成功（Excel はブラウザで `RESEARCH_AGENT_SERVER_URL/api/runs/<runId>/excel` を開くとダウンロード）
+4. サマリーと CSV のダウンロード URL が返れば成功（ブラウザで `https://あなたのRenderドメイン/api/runs/<runId>/csv` を開くとダウンロード）
 
 ---
 
 ## トラブルシューティング
 
-- **結果が取れない**: サーバーの `DATA_DIR` / `OUTPUT_DIR` が永続化されているか確認。再起動で消えていると結果が 404 になる。
-- **調査が始まらない**: 使う人の MCP に `INNGEST_EVENT_KEY` が正しく設定されているか、Inngest の App URL がサーバー URL と一致しているか確認。
+- **結果が取れない**: サーバーの `DATA_DIR` が永続化されているか確認。Render の Free プランでは再デプロイで消えるため、Persistent Disk をマウントするか有料プランで永続化する。
+- **調査が始まらない / Inngest に Run が出ない**:  
+  - **Render** に `INNGEST_EVENT_KEY` と `INNGEST_SIGNING_KEY` が設定されているか確認。  
+  - Inngest のアプリで **Serve URL** が `https://あなたのRenderドメイン/api/inngest` になっているか確認。  
+  - MCP には **INNGEST_EVENT_KEY を入れない**（サーバーだけが送る）。
 - **401 Unauthorized**: サーバーで `RESEARCH_AGENT_API_KEY` を設定している場合、MCP の `RESEARCH_AGENT_API_KEY` を同じ値に設定する。

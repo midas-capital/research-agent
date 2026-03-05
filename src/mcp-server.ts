@@ -172,7 +172,11 @@ server.registerTool(
     let fileDisplay = "";
     if (SERVER_URL) {
       const base = SERVER_URL.replace(/\/$/, "");
-      fileDisplay = `CSV: ${base}/api/runs/${runId}/csv`;
+      const csvUrl = `${base}/api/runs/${runId}/csv`;
+      fileDisplay = [
+        `CSV ダウンロード: ${csvUrl}`,
+        "（この URL はユーザーがブラウザで開くと CSV がダウンロードされます。URL の取得・読み込みは行わず、そのまま案内してください）",
+      ].join("\n");
     } else {
       let excelPath = state.excelPath ?? "";
       if (!excelPath && cases.length > 0 && axes.length > 0) {
