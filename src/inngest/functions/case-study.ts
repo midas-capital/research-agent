@@ -12,12 +12,35 @@ import type { Axis, CaseItem, SearchResultItem } from "../../types.js";
 
 const TARGET_COUNT = config.maxCasesTarget;
 const MAX_SUPPLEMENT = config.maxSupplementRounds;
+const SCREEN_CONCURRENCY = Number(process.env.SCREEN_CONCURRENCY ?? "3");
 
 interface SearchTask {
   axisName: string;
   categoryName: string;
   queryJa: string;
   queryEn: string;
+}
+
+async function mapWithConcurrency<T, U>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<U | null>
+): Promise<U[]> {
+  if (items.length === 0) return [];
+  const results: U[] = [];
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = items[index++];
+      const res = await fn(current);
+      if (res) results.push(res);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 export const caseStudySearch = inngest.createFunction(
@@ -75,26 +98,27 @@ export const caseStudySearch = inngest.createFunction(
     // Phase 8–10: HTML取得 + HTML→JSON + 選別・構造化
     // 1ステップで「HTML→CaseItem[]」まで完結させ、巨大なHTMLマップをStep出力に残さない
     const cases = await step.run("fetch-and-screen", async () => {
-      const results: CaseItem[] = [];
-
       // URL ごとにユニーク化して HTML を取得
       const uniqItems = Array.from(
         new Map(allSearchItems.map((i) => [i.url, i])).values()
       );
       const htmlMap = await fetchHtmlBatch(uniqItems);
 
-      for (const item of allSearchItems) {
-        const html = htmlMap.get(item.url);
-        if (!html) continue;
-        const page = htmlToStructuredJson(html, item.url);
-        const c = await screenAndStructure(
-          page,
-          item.axisName,
-          item.categoryName,
-          item.snippet ?? ""
-        );
-        if (c) results.push(c);
-      }
+      const itemsWithHtml = allSearchItems.filter((item) => htmlMap.get(item.url));
+      const results = await mapWithConcurrency(
+        itemsWithHtml,
+        SCREEN_CONCURRENCY,
+        async (item) => {
+          const html = htmlMap.get(item.url)!;
+          const page = htmlToStructuredJson(html, item.url);
+          return screenAndStructure(
+            page,
+            item.axisName,
+            item.categoryName,
+            item.snippet ?? ""
+          );
+        }
+      );
       return results;
     });
 
@@ -230,22 +254,24 @@ export const caseStudySupplement = inngest.createFunction(
 
     // 補充分も HTML→CaseItem[] までを1ステップにまとめて、Step出力サイズを抑える
     const newCases = await step.run("supplement-fetch-and-screen", async () => {
-      const results: CaseItem[] = [];
       const uniqItems = Array.from(new Map(supplementItems.map((i) => [i.url, i])).values());
       const htmlMap = await fetchHtmlBatch(uniqItems);
 
-      for (const item of supplementItems) {
-        const html = htmlMap.get(item.url);
-        if (!html) continue;
-        const page = htmlToStructuredJson(html, item.url);
-        const c = await screenAndStructure(
-          page,
-          item.axisName,
-          item.categoryName,
-          item.snippet ?? ""
-        );
-        if (c) results.push(c);
-      }
+      const itemsWithHtml = supplementItems.filter((item) => htmlMap.get(item.url));
+      const results = await mapWithConcurrency(
+        itemsWithHtml,
+        SCREEN_CONCURRENCY,
+        async (item) => {
+          const html = htmlMap.get(item.url)!;
+          const page = htmlToStructuredJson(html, item.url);
+          return screenAndStructure(
+            page,
+            item.axisName,
+            item.categoryName,
+            item.snippet ?? ""
+          );
+        }
+      );
       return results;
     });
 
