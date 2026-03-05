@@ -50,7 +50,7 @@ server.registerTool(
   {
     title: "事例調査を開始",
     description:
-      "ユーザーの質問・テーマに基づいて事例調査を開始します。バックグラウンドで検索・選別・構造化が実行され、完了後に結果を取得できます。",
+      "「〇〇の事例を調べて」「成功事例を教えて」「ケーススタディをまとめて」「導入事例を一覧にして」など、事例・ケーススタディ調査を始めたいときに使うツールです。ユーザーの質問・テーマに基づいて、Web 上の導入事例・成功事例・活用事例・ケーススタディを検索し、バックグラウンドで選別・構造化を行います。完了後は get_case_study_result ツールで、事例のサマリーと CSV ダウンロード用リンクを取得できます。",
     inputSchema: {
       query: z.string().describe("調査したいテーマ・質問（例: 製造業のDX導入事例）"),
     },
@@ -76,11 +76,26 @@ server.registerTool(
         };
       }
       const data = (await res.json()) as { runId: string };
+      const base = SERVER_URL.replace(/\/$/, "");
+      const text = [
+        "## 事例調査を開始しました",
+        "",
+        `- クエリ: ${query}`,
+        `- runId: ${data.runId}`,
+        "",
+        "### このあとどうすればよいか",
+        "- 1〜2分ほど待ってから、ユーザーが「結果を教えて」や「事例の結果は？」と依頼してください。",
+        "- このツールを連続で呼び続けるのではなく、ユーザーの依頼ごとに1回だけ呼んでください。",
+        "",
+        "### 進捗確認（開発者向け）",
+        `- サーバー: ${base}`,
+        "- Inngest のダッシュボードで各ステップの進捗を確認できます。",
+      ].join("\n");
       return {
         content: [
           {
             type: "text" as const,
-            text: `サーバー上で事例調査を開始しました。バックグラウンドで事例を収集しています。\n完了したら「結果を教えて」や「事例の結果は？」と聞いてください。\n\nrunId: ${data.runId}`,
+            text,
           },
         ],
       };
@@ -108,7 +123,7 @@ server.registerTool(
   {
     title: "事例調査の結果を取得",
     description:
-      "実行中または完了した事例調査の状態・結果を取得します。runId を省略すると直近の実行を参照します。実行中の場合は1回だけ呼び、ユーザーが再度「結果を教えて」と言うまで連続で呼ばないでください。",
+      "「さっきの事例調査の結果を教えて」「事例リストを見せて」「ケーススタディの一覧を出して」など、事例調査の結果・レポートを確認したいときに使うツールです。実行中または完了した事例調査の状態と結果（サマリー・軸別件数・代表事例・CSV ダウンロード URL）を取得します。runId を省略すると直近の実行を参照します。実行中の場合は 1 回だけ呼び、ユーザーが再度「結果を教えて」と言うまで連続で呼ばないでください。",
     inputSchema: {
       runId: z.string().optional().describe("調査の runId（省略時は直近を取得）"),
     },
@@ -118,11 +133,17 @@ server.registerTool(
       requestedRunId ??
       (SERVER_URL ? await fetchLatestRunIdFromServer() : await getLatestRunId());
     if (!runId) {
+      const text = [
+        "## 事例調査の結果を取得できませんでした",
+        "",
+        "- まだ事例調査が開始されていないようです。",
+        "- まず「事例調査をして」や「〇〇の事例を調べて」などと依頼してください。",
+      ].join("\n");
       return {
         content: [
           {
             type: "text" as const,
-            text: "まだ事例調査が開始されていません。まず「事例調査をして」などと依頼してください。",
+            text,
           },
         ],
       };
@@ -132,33 +153,63 @@ server.registerTool(
       ? await fetchRunStateFromServer(runId)
       : await readRunState(runId);
     if (!state) {
+      const text = [
+        "## 事例調査の結果を取得できませんでした",
+        "",
+        `- runId: ${runId}`,
+        "- 指定された runId の結果がサーバー上で見つかりませんでした。",
+        "- 調査がまだ完了していないか、バックグラウンド処理がうまく終了していない可能性があります。",
+        "",
+        "### このあと試せること",
+        "- 少し時間をおいてから、もう一度「結果を教えて」と依頼してください（このツールを再度1回だけ呼び出す）。",
+        "- それでも見つからない場合は、新しく「事例調査をして」と依頼して調査をやり直してください。",
+      ].join("\n");
       return {
         content: [
           {
             type: "text" as const,
-            text: `runId ${runId} の実行が見つかりません。調査がまだ開始されていないか、別の runId を指定してください。`,
+            text,
           },
         ],
       };
     }
 
     if (state.status === "pending" || state.status === "running") {
+      const text = [
+        "## 事例調査はまだ実行中です",
+        "",
+        `- クエリ: ${state.query}`,
+        `- runId: ${state.runId}`,
+        `- 状態: ${state.status}`,
+        "",
+        "### 次のアクション",
+        "- 1〜2分ほど待ってから、ユーザーが「結果を教えて」と言ったタイミングでこのツールを**1回だけ**呼んでください。",
+        "- このツールを短い間隔で連続呼び出し（ポーリング）しないでください。",
+      ].join("\n");
       return {
         content: [
           {
             type: "text" as const,
-            text: `調査はまだ実行中です。\nクエリ: ${state.query}\n状態: ${state.status}\n\n1〜2分ほど待ってから、ユーザーが「結果を教えて」と言ったタイミングで再度このツールを1回だけ呼んでください。このツールの連続呼び出し（ポーリング）は行わないでください。`,
+            text,
           },
         ],
       };
     }
 
     if (state.status === "failed") {
+      const text = [
+        "## 事例調査が失敗しました",
+        "",
+        `- クエリ: ${state.query}`,
+        `- runId: ${state.runId}`,
+        "",
+        `エラー内容: ${state.error ?? "不明"}`,
+      ].join("\n");
       return {
         content: [
           {
             type: "text" as const,
-            text: `調査が失敗しました。\nエラー: ${state.error ?? "不明"}`,
+            text,
           },
         ],
         isError: true,
@@ -189,25 +240,59 @@ server.registerTool(
       fileDisplay = excelPath ? `Excel: file://${excelPath}` : "（Excel は生成されていません）";
     }
 
+    // 事例が1件もない場合は、調査がうまく完了していない可能性を案内
+    if (!cases.length) {
+      const text = [
+        "## 事例調査の結果について",
+        "",
+        "- 実行は完了しましたが、条件に合致する事例が見つかりませんでした。",
+        "- 一時的な検索結果やサイト構造の都合で、十分な事例を抽出できていない可能性もあります。",
+        "",
+        "### 実行情報",
+        `- クエリ: ${state.query}`,
+        `- runId: ${runId}`,
+        `- 状態: ${state.status}`,
+        "",
+        "### このあと試せること",
+        "- 少し時間をおいてから、もう一度同じテーマで調査を実行してみてください。",
+        "- あるいは、キーワードを少し変えて（業種・規模などを具体化して）再度依頼すると、事例が見つかりやすくなります。",
+      ].join("\n");
+
+      return {
+        content: [{ type: "text" as const, text }],
+      };
+    }
+
     const summaryText = [
-      `## 事例調査結果 (runId: ${runId})`,
-      `クエリ: ${state.query}`,
-      `事例数: ${cases.length} 件`,
-      `軸: ${axes.map((a) => a.name).join(", ")}`,
+      `## 事例調査結果`,
       "",
+      "### 実行情報",
+      `- クエリ: ${state.query}`,
+      `- runId: ${runId}`,
+      `- 状態: ${state.status}`,
+      "",
+      "### 集計",
+      `- 事例数: ${cases.length} 件`,
+      `- 軸: ${axes.map((a) => a.name).join(", ") || "（軸情報なし）"}`,
+      "",
+      "### データダウンロード",
       fileDisplay,
       "",
-      "### サマリー（軸別）",
-      ...axes.map(
-        (a) =>
-          `- **${a.name}**: ${cases.filter((c) => c.axisName === a.name).length} 件`
-      ),
+      "### 軸別件数",
+      ...(axes.length > 0
+        ? axes.map(
+            (a) =>
+              `- **${a.name}**: ${cases.filter((c) => c.axisName === a.name).length} 件`
+          )
+        : ["（軸情報がないため集計できません）"]),
       "",
-      "### 事例一覧（先頭10件）",
-      ...cases.slice(0, 10).map(
-        (c) =>
-          `- **${c.companyName}**: ${c.challenge?.slice(0, 60) ?? ""}... → ${c.effect?.slice(0, 40) ?? ""}...`
-      ),
+      "### 代表事例（先頭10件）",
+      ...(cases.length > 0
+        ? cases.slice(0, 10).map(
+            (c) =>
+              `- **${c.companyName}**: ${(c.challenge ?? "").slice(0, 60)}... → ${(c.effect ?? "").slice(0, 40)}...`
+          )
+        : ["（事例がまだありません）"]),
     ].join("\n");
 
     return {
