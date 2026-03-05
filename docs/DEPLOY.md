@@ -164,17 +164,28 @@ docker run -d --name research-agent -p 3000:3000 \
 
 ## 3. 使う人（他の人の PC）の設定
 
-**ターミナルは起動しません。** 各自の Claude Desktop の MCP 設定だけ行います。
+### 簡単セットアップ（推奨）
+
+1. ターミナルで実行:
+   ```bash
+   npx research-agent-mcp-setup
+   ```
+2. 表示に従って **サーバー URL**（例: `https://your-app.onrender.com`）を入力。API キーが必要なサーバーなら同じタイミングで入力。
+3. **Claude Desktop を再起動**する。
+
+リポジトリのクローンやパスの指定は不要です。
+
+### 手動で設定する場合
 
 1. **Claude Desktop** → 設定 → Developer → **Edit config**
-2. `claude_desktop_config.json` に以下を追加（**完全クラウド運用**用）
+2. `claude_desktop_config.json` の `mcpServers` に以下を追加:
 
 ```json
 {
   "mcpServers": {
     "research-agent": {
       "command": "npx",
-      "args": ["tsx", "/path/to/research-agent/src/mcp-server.ts"],
+      "args": ["research-agent-mcp"],
       "env": {
         "RESEARCH_AGENT_SERVER_URL": "https://your-app.onrender.com",
         "RESEARCH_AGENT_API_KEY": "optional-if-server-requires"
@@ -188,8 +199,7 @@ docker run -d --name research-agent -p 3000:3000 \
   **INNGEST_EVENT_KEY は入れない**（イベント送信はサーバー側のみ）。
 - **RESEARCH_AGENT_API_KEY**: サーバーで API キーを要求している場合のみ同じ値を設定。
 
-**注意**: 各自の PC にこのリポジトリ（少なくとも `src/mcp-server.ts` と依存関係）が必要です。  
-または、MCP サーバーだけを npm パッケージ化して `npx research-agent-mcp` のように配布する方法もあります。
+**注意**: `npx research-agent-mcp` を使う場合は Node.js が入っていればよく、リポジトリのクローンは不要です。開発用にリポジトリから直接動かす場合は `args`: `["tsx", "/path/to/research-agent/src/mcp-server.ts"]` と `RESEARCH_AGENT_SERVER_URL` を設定してください。
 
 3. Claude Desktop を**再起動**する。
 

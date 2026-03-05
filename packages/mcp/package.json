@@ -1,0 +1,29 @@
+{
+  "name": "research-agent-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for research-agent (case study search). Connect to a deployed research-agent server.",
+  "type": "module",
+  "main": "dist/mcp-server.js",
+  "bin": {
+    "research-agent-mcp": "./dist/mcp-server.js",
+    "research-agent-mcp-setup": "./dist/setup.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
