@@ -263,6 +263,28 @@ server.registerTool(
       };
     }
 
+    // 軸ごとの件数を集計して、多い順にソート
+    const axisCounts = axes.map((a) => ({
+      name: a.name,
+      count: cases.filter((c) => c.axisName === a.name).length,
+    }));
+    axisCounts.sort((a, b) => b.count - a.count);
+    const topAxes = axisCounts.slice(0, 3).filter((a) => a.count > 0);
+
+    const trendLines: string[] = [];
+    if (topAxes.length > 0) {
+      trendLines.push(
+        `- 事例数が多い軸: ${topAxes
+          .map((a) => `${a.name}（${a.count}件）`)
+          .join("、")}`
+      );
+      trendLines.push(
+        "- 全体として、上記の軸に関する事例が相対的に多く集まっています。"
+      );
+    } else {
+      trendLines.push("- 軸ごとの偏りはほとんど見られませんでした。");
+    }
+
     const summaryText = [
       `## 事例調査結果`,
       "",
@@ -273,6 +295,7 @@ server.registerTool(
       "",
       "### 集計",
       `- 事例数: ${cases.length} 件`,
+      `- 軸数: ${axes.length} 本`,
       `- 軸: ${axes.map((a) => a.name).join(", ") || "（軸情報なし）"}`,
       "",
       "### データダウンロード",
@@ -286,13 +309,8 @@ server.registerTool(
           )
         : ["（軸情報がないため集計できません）"]),
       "",
-      "### 代表事例（先頭10件）",
-      ...(cases.length > 0
-        ? cases.slice(0, 10).map(
-            (c) =>
-              `- **${c.companyName}**: ${(c.challenge ?? "").slice(0, 60)}... → ${(c.effect ?? "").slice(0, 40)}...`
-          )
-        : ["（事例がまだありません）"]),
+      "### 全体的な傾向（概要）",
+      ...trendLines,
     ].join("\n");
 
     return {
