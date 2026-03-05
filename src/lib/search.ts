@@ -1,4 +1,4 @@
-import { getJson } from "serpapi";
+import axios from "axios";
 import { config } from "../config.js";
 import type { SearchResultItem } from "../types.js";
 
@@ -12,27 +12,31 @@ export async function searchWeb(
   lang: "ja" | "en"
 ): Promise<SearchResultItem[]> {
   if (!config.serpApiKey) {
-    throw new Error("SERPAPI_API_KEY is not set");
+    throw new Error("SERPER_API_KEY or SERPAPI_API_KEY is not set");
   }
   const num = Math.min(10, Math.max(searchPerCategory.min, searchPerCategory.max));
-  const params: Record<string, string | number> = {
-    engine: "google",
-    api_key: config.serpApiKey,
+  const body: Record<string, string | number> = {
     q: query,
     num,
   };
   if (lang === "ja") {
-    params.gl = "jp";
-    params.hl = "ja";
+    body.gl = "jp";
+    body.hl = "ja";
   } else {
-    params.gl = "us";
-    params.hl = "en";
+    body.gl = "us";
+    body.hl = "en";
   }
 
-  const data = (await getJson(params)) as {
-    organic_results?: Array<{ link?: string; title?: string; snippet?: string }>;
-  };
-  const results = data.organic_results ?? [];
+  const { data } = await axios.post<{
+    organic?: Array<{ link?: string; title?: string; snippet?: string }>;
+  }>("https://google.serper.dev/search", body, {
+    headers: {
+      "X-API-KEY": config.serpApiKey,
+      "Content-Type": "application/json",
+    },
+    timeout: 15000,
+  });
+  const results = data.organic ?? [];
   return results
     .filter((r) => r.link)
     .slice(0, num)

@@ -32,7 +32,8 @@ export const config = {
   appUrl: process.env.APP_URL ?? "http://localhost:3000",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
-  serpApiKey: process.env.SERPAPI_API_KEY ?? "",
+  // Web 検索用 API キー（Serper.dev 推奨。なければ互換の SERPAPI_API_KEY も見る）
+  serpApiKey: process.env.SERPER_API_KEY ?? process.env.SERPAPI_API_KEY ?? "",
   // 目標とする事例数（補充前後を含めた最終件数の目安）
   maxCasesTarget: toNumber(process.env.MAX_CASES_TARGET, defaultMaxCasesTarget),
   // 補充ラウンド数（0 なら補充なし）

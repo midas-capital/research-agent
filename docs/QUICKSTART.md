@@ -7,7 +7,7 @@
 ## 1. API キーを用意する
 
 - [OpenAI](https://platform.openai.com/) で **OPENAI_API_KEY** を発行（gpt-4o-mini 用）
-- [SerpAPI](https://serpapi.com/) で **SERPAPI_API_KEY** を発行
+- [Serper.dev](https://serper.dev/) で **SERPER_API_KEY** を発行（Web検索用）
 
 ---
 
@@ -23,7 +23,7 @@ cp .env.example .env
 
 ```
 OPENAI_API_KEY=sk-...
-SERPAPI_API_KEY=...
+SERPER_API_KEY=...
 ```
 
 `APP_URL` は開発ならそのままでよい（`http://localhost:3000`）。
