@@ -35,14 +35,14 @@ export async function screenAndStructure(
   const { content } = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 512,
-    response_format: { type: "json_object" },
     messages: [
       {
         role: "user",
         content: `以下のWebページの内容が「企業の導入事例・活用事例・導入効果」に該当するか判定し、該当する場合のみ企業名・課題・解決策・効果を抽出してください。
 該当しない場合（製品紹介だけ、ニュース、ブログの感想のみ等）は isCase: false にしてください。
 
-出力は次のスキーマに従った JSON オブジェクト1つだけにしてください（説明文やコードブロックは不要です）。
+出力は次のスキーマに従った JSON オブジェクト1つだけにしてください。
+必ず JSON だけを返してください。説明文やコードブロック（\`\`\`）は付けないでください。
 
 {
   "isCase": boolean,
@@ -59,12 +59,23 @@ export async function screenAndStructure(
 ${text}`,
       },
     ],
-  } as never);
+  });
 
-  const raw = content[0].type === "text" ? content[0].text : "";
+  const raw = content[0].type === "text" ? content[0].text.trim() : "";
   let parsed: CaseLLMResponse;
   try {
-    const json = JSON.parse(raw);
+    let jsonText = raw;
+    const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch && fenceMatch[1]) {
+      jsonText = fenceMatch[1].trim();
+    } else {
+      const objectMatch = raw.match(/\{[\s\S]*?\}/);
+      if (objectMatch && objectMatch[0]) {
+        jsonText = objectMatch[0];
+      }
+    }
+
+    const json = JSON.parse(jsonText);
     const result = CaseSchema.safeParse(json);
     if (!result.success || !result.data.isCase) {
       return null;
