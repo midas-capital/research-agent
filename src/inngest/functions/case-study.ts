@@ -12,7 +12,8 @@ import type { Axis, CaseItem, SearchResultItem } from "../../types.js";
 
 const TARGET_COUNT = config.maxCasesTarget;
 const MAX_SUPPLEMENT = config.maxSupplementRounds;
-const SCREEN_CONCURRENCY = Number(process.env.SCREEN_CONCURRENCY ?? "3");
+// Claude への同時リクエスト数。デフォルトは 1（安全寄り）にしておき、必要なら環境変数で増やす。
+const SCREEN_CONCURRENCY = Number(process.env.SCREEN_CONCURRENCY ?? "1");
 
 interface SearchTask {
   axisName: string;

@@ -1,9 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { config } from "../config.js";
+import { openai } from "./openai-client.js";
 import type { CaseItem, PageContent } from "../types.js";
-
-const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
 const CaseSchema = z.object({
   isCase: z.boolean(),
@@ -32,9 +29,9 @@ export async function screenAndStructure(
     `検索スニペット: ${snippet}`,
   ].join("\n");
 
-  const { content } = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
     messages: [
       {
         role: "user",
@@ -61,7 +58,8 @@ ${text}`,
     ],
   });
 
-  const raw = content[0].type === "text" ? content[0].text.trim() : "";
+  const message = completion.choices[0]?.message;
+  const raw = ((message?.content as string) ?? "").trim();
   let parsed: CaseLLMResponse;
   try {
     let jsonText = raw;

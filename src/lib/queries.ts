@@ -1,7 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { openai } from "./openai-client.js";
 import { config } from "../config.js";
-
-const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
 /**
  * フェーズ6: 各カテゴリを日本語・英語の検索クエリに変換
@@ -12,9 +10,9 @@ export async function categoryToSearchQueries(
   categoryName: string,
   userQuery: string
 ): Promise<{ ja: string; en: string }> {
-  const { content } = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 256,
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
     messages: [
       {
         role: "user",
@@ -30,9 +28,9 @@ export async function categoryToSearchQueries(
     ],
   });
 
-  const text = content[0].type === "text" ? content[0].text : "";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+  const message = completion.choices[0]?.message;
+  const text = (message?.content as string) ?? "";
+  const parsed = text ? JSON.parse(text) : {};
   return {
     ja: String(parsed.ja ?? `${userQuery} ${categoryName} 事例`).trim(),
     en: String(parsed.en ?? `${userQuery} ${categoryName} case study`).trim(),

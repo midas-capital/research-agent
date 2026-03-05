@@ -12,6 +12,7 @@ export const config = {
   outputDir: process.env.OUTPUT_DIR ?? path.join(root, "output"),
   appUrl: process.env.APP_URL ?? "http://localhost:3000",
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+  openaiApiKey: process.env.OPENAI_API_KEY ?? "",
   serpApiKey: process.env.SERPAPI_API_KEY ?? "",
   maxCasesTarget: lightMode ? 10 : Number(process.env.MAX_CASES_TARGET) || 100,
   maxSupplementRounds: lightMode ? 0 : Number(process.env.MAX_SUPPLEMENT_ROUNDS) || 3,

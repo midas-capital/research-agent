@@ -1,8 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { openai } from "./openai-client.js";
 import { config } from "../config.js";
 import type { Axis } from "../types.js";
-
-const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
 const { maxAxes, maxCategoriesPerAxis } = config;
 
@@ -16,9 +14,9 @@ export async function generateAxesAndCategories(query: string): Promise<Axis[]> 
       ? "軸は2個にすること。各軸には2個のカテゴリを付けること。"
       : `軸は${maxAxes}個まで、各軸には${maxCategoriesPerAxis}個までのカテゴリにすること。`;
 
-  const { content } = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
     messages: [
       {
         role: "user",
@@ -32,25 +30,25 @@ export async function generateAxesAndCategories(query: string): Promise<Axis[]> 
 ## ユーザーの質問・テーマ
 ${query}
 
-## 出力形式（JSONのみ、説明は不要）
-\`\`\`json
-[
-  { "name": "軸の名前", "categories": ["カテゴリ1", "カテゴリ2"] },
-  { "name": "軸の名前2", "categories": ["カテゴリA", "カテゴリB"] }
-]
-\`\`\``,
+## 出力形式（JSONオブジェクトのみ、説明不要）
+{
+  "axes": [
+    { "name": "軸の名前", "categories": ["カテゴリ1", "カテゴリ2"] },
+    { "name": "軸の名前2", "categories": ["カテゴリA", "カテゴリB"] }
+  ]
+}`,
       },
     ],
   });
 
-  const text = content[0].type === "text" ? content[0].text : "";
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const jsonStr = jsonMatch ? jsonMatch[1].trim() : text.trim();
-  const parsed = JSON.parse(jsonStr) as Axis[];
-  if (!Array.isArray(parsed) || parsed.length === 0) {
+  const message = completion.choices[0]?.message;
+  const text = (message?.content as string) ?? "";
+  const parsed = JSON.parse(text) as { axes?: Axis[] };
+  const axes = parsed.axes ?? [];
+  if (!Array.isArray(axes) || axes.length === 0) {
     throw new Error("Invalid axes response: expected non-empty array");
   }
-  return parsed.slice(0, maxAxes).map((a) => ({
+  return axes.slice(0, maxAxes).map((a) => ({
     name: String(a.name),
     categories: (Array.isArray(a.categories) ? a.categories : []).slice(0, maxCategoriesPerAxis).map(String),
   }));
