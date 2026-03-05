@@ -108,7 +108,7 @@ server.registerTool(
   {
     title: "事例調査の結果を取得",
     description:
-      "実行中または完了した事例調査の状態・結果を取得します。runId を省略すると直近の実行を参照します。",
+      "実行中または完了した事例調査の状態・結果を取得します。runId を省略すると直近の実行を参照します。実行中の場合は1回だけ呼び、ユーザーが再度「結果を教えて」と言うまで連続で呼ばないでください。",
     inputSchema: {
       runId: z.string().optional().describe("調査の runId（省略時は直近を取得）"),
     },
@@ -147,7 +147,7 @@ server.registerTool(
         content: [
           {
             type: "text" as const,
-            text: `調査はまだ実行中です。\nクエリ: ${state.query}\n状態: ${state.status}\nしばらくしてから再度「結果を教えて」と聞いてください。`,
+            text: `調査はまだ実行中です。\nクエリ: ${state.query}\n状態: ${state.status}\n\n1〜2分ほど待ってから、ユーザーが「結果を教えて」と言ったタイミングで再度このツールを1回だけ呼んでください。このツールの連続呼び出し（ポーリング）は行わないでください。`,
           },
         ],
       };
