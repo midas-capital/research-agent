@@ -107,7 +107,7 @@
   - Inngest 側では Excel を生成しない。  
   - ローカル運用時のみ、MCP が結果取得時に `writeExcel` で生成し、`file://` で案内可能。
 - **モデル**  
-  - 軸・クエリ・選別は Sonnet（`claude-sonnet-4-5`）。Haiku は 404 のため未使用。
+  - 軸・クエリ・選別は OpenAI の `gpt-4o-mini`。Zod を使って JSON 形式と型を検証している。
 
 ### 2.3 未実装・今後の検討
 

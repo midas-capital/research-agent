@@ -17,7 +17,7 @@
 ## 1. プロジェクト基盤
 
 - [x] プロジェクト初期化（package.json, type: "module", TypeScript）
-- [x] 依存関係の追加（express, inngest, @anthropic-ai/sdk, @modelcontextprotocol/sdk, axios, cheerio, exceljs, serpapi, zod, dotenv）
+- [x] 依存関係の追加（express, inngest, openai, @modelcontextprotocol/sdk, axios, cheerio, exceljs, serpapi, zod, dotenv）
 - [x] tsconfig（ESM 出力、dist 配下）
 - [x] npm scripts: build, dev, mcp, mcp:dev, inngest:dev
 - [x] .env.example の用意
@@ -28,8 +28,8 @@
 ## 2. 型・設定
 
 - [x] 型定義（types.ts）: RunState, Axis, CaseItem, SearchResultItem 等
-- [x] config.ts: DATA_DIR, OUTPUT_DIR, APP_URL, API キー、LIGHT_MODE
-- [x] LIGHT_MODE による件数・軸数・カテゴリ数・補充回数の切り替え
+- [x] config.ts: DATA_DIR, OUTPUT_DIR, APP_URL, API キー（OPENAI_API_KEY, SERPAPI_API_KEY）、LIGHT_MODE、各種チューニング用パラメータ
+- [x] LIGHT_MODE と環境変数（MAX_AXES, MAX_CATEGORIES_PER_AXIS, MAX_CASES_TARGET, MAX_SUPPLEMENT_ROUNDS, SEARCH_PER_CATEGORY_MIN/MAX, SCREEN_CONCURRENCY）による件数・軸数・カテゴリ数・補充回数・並列度の切り替え
 - [x] getRunStatePath / getExcelPath のユーティリティ
 
 ---
@@ -39,9 +39,9 @@
 - [x] SerpAPI 検索（lib/search.ts）: searchWeb(query, lang)
 - [x] HTML 取得（lib/fetch-html.ts）: fetchHtmlBatch, 文字数制限
 - [x] HTML→構造化（lib/html-to-json.ts）: htmlToStructuredJson
-- [x] 軸・カテゴリ生成（lib/axes.ts）: generateAxesAndCategories（Claude）
-- [x] 検索クエリ生成（lib/queries.ts）: categoryToSearchQueries（Claude）
-- [x] 選別・構造化（lib/screen-structure.ts）: screenAndStructure（Claude）
+- [x] 軸・カテゴリ生成（lib/axes.ts）: generateAxesAndCategories（OpenAI gpt-4o-mini）
+- [x] 検索クエリ生成（lib/queries.ts）: categoryToSearchQueries（OpenAI gpt-4o-mini）
+- [x] 選別・構造化（lib/screen-structure.ts）: screenAndStructure（OpenAI gpt-4o-mini + Zod 検証）
 - [x] 重複フラグ（lib/dedup.ts）: flagDuplicates
 - [x] RunState 読み書き（lib/run-store.ts）: readRunState, writeRunState
 - [x] Excel 出力（lib/excel.ts）: writeExcel（オプション・Inngest では未使用）

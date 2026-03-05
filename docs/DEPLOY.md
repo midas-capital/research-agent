@@ -74,7 +74,7 @@
 
 | 変数 | 必須 | 説明 |
 |------|------|------|
-| `ANTHROPIC_API_KEY` | ✅ | Anthropic API キー |
+| `OPENAI_API_KEY` | ✅ | OpenAI API キー（gpt-4o-mini 用） |
 | `SERPAPI_API_KEY` | ✅ | SerpAPI キー |
 | `INNGEST_EVENT_KEY` | ✅ | Inngest Cloud の Event key（サーバーが `inngest.send()` する時に使用） |
 | `INNGEST_SIGNING_KEY` | ✅ | Inngest Cloud の Signing key（Cloud が `/api/inngest` を呼ぶ時の検証用） |
@@ -134,7 +134,7 @@
 ### C. Fly.io でデプロイ
 
 1. [Fly.io](https://fly.io/) にログイン後、プロジェクトで `fly launch`
-2. `fly secrets set ANTHROPIC_API_KEY=xxx SERPAPI_API_KEY=xxx INNGEST_SIGNING_KEY=xxx APP_URL=https://xxx.fly.dev`
+2. `fly secrets set OPENAI_API_KEY=xxx SERPAPI_API_KEY=xxx INNGEST_SIGNING_KEY=xxx APP_URL=https://xxx.fly.dev`
 3. 永続ボリューム: `fly volumes create data` と `fly volumes create output` で作成し、`fly.toml` でマウント
 4. `fly deploy`
 5. 発行された URL を **APP_URL** と Inngest の App URL に設定
@@ -149,7 +149,7 @@ docker build -t research-agent .
 
 # 永続ボリューム付きで実行
 docker run -d --name research-agent -p 3000:3000 \
-  -e ANTHROPIC_API_KEY=xxx \
+  -e OPENAI_API_KEY=xxx \
   -e SERPAPI_API_KEY=xxx \
   -e INNGEST_SIGNING_KEY=xxx \
   -e APP_URL=https://your-domain.com \
