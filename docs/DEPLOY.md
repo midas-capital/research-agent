@@ -80,11 +80,30 @@
 | `INNGEST_SIGNING_KEY` | ✅ | Inngest Cloud の Signing key（Cloud が `/api/inngest` を呼ぶ時の検証用） |
 | `APP_URL` | ✅ | デプロイ後の URL（例: `https://xxx.onrender.com`） |
 | `PORT` | - | 多くの PaaS が自動設定。未設定時は 3000 |
-| `DATA_DIR` | - | 省略可。例: `/app/data`（RunState の保存先） |
+| `DATA_DIR` | - | 省略可。例: `/app/data`（**DATABASE_URL 未設定時**の RunState 保存先） |
 | `OUTPUT_DIR` | - | 省略可。例: `/app/output`（Excel を使う場合。現在は CSV のみなら未使用でも可） |
+| `DATABASE_URL` | - | **推奨（本番）**。Postgres の接続文字列。設定すると RunState を DB に保存し、複数インスタンス・再起動後も結果が残る（「Inngest 上ではあるのに結果が見つからない」を解消）。例: `postgresql://user:pass@host:5432/dbname` |
 | `RESEARCH_AGENT_API_KEY` | - | 任意。設定すると `/api/runs/*` に API キー必須 |
 
-**重要**: `data` と `output` は**永続化**が必要です。再デプロイや再起動で消えないように、各サービスの「ボリューム」や「永続ディスク」をマウントしてください。
+**RunState の永続化**: `DATABASE_URL` を設定すると RunState は Postgres に保存され、永続ディスクは不要。未設定の場合は `DATA_DIR` のファイルに保存するため、Render では Persistent Disk のマウントまたは有料プランでの永続化を推奨する。
+
+#### RunState を DB に保存する場合（推奨）
+
+1. Postgres を用意する（下記 **Render Postgres** や [Neon](https://neon.tech/)、[Supabase](https://supabase.com/) など）。
+2. 接続文字列をコピーし、サーバーの環境変数 **`DATABASE_URL`** に設定する（例: `postgresql://user:pass@host:5432/dbname`）。
+3. 起動時に `run_states` テーブルが自動作成される。Persistent Disk は RunState 用には不要。
+
+**Render Postgres を使う場合**
+
+1. [Render ダッシュボード](https://dashboard.render.com/)で **New** → **PostgreSQL**
+2. 名前・リージョン（Web サービスと同じにするとレイテンシが良い）を選び **Create Database**
+3. 作成後、**Connections** の **Internal Database URL** をコピー（同じ Render アカウント内の Web サービスからはこちらを使う）
+4. research-agent の **Web Service** を開き **Environment** → **Add Environment Variable**
+   - Key: `DATABASE_URL`
+   - Value: コピーした **Internal Database URL** をそのまま貼る
+5. **Save Changes** で再デプロイ。起動時に `run_states` が自動作成され、以降の調査結果は DB に保存される
+
+（外部から接続する場合は **External Database URL** を使う。同一アカウント内なら Internal で十分。）
 
 ---
 
@@ -106,8 +125,8 @@
 2. リポジトリを接続
 3. **Build Command**: `npm install && npm run build`
 4. **Start Command**: `node dist/server.js`
-5. **Environment** に上記の環境変数を設定
-6. **Disk** で Persistent Disk を追加し、`/app/data` と `/app/output` にマウント（Render のディスクは1つなので、`/app/data` にマウントし、`DATA_DIR=/app/data`、`OUTPUT_DIR=/app/data/output` のようにサブディレクトリでも可）
+5. **Environment** に上記の環境変数を設定。**`DATABASE_URL`** は「RunState を DB に保存する場合」の **Render Postgres を使う場合** の手順で設定すると、RunState が Postgres に保存され、次項の Disk は RunState 用には不要。
+6. **Disk**（`DATABASE_URL` 未設定時）: Persistent Disk を追加し、`/app/data` にマウント（`DATA_DIR=/app/data`、`OUTPUT_DIR=/app/data/output` など）。
 7. 発行された URL を **APP_URL** と Inngest の App URL に設定
 
 ---
@@ -181,15 +200,25 @@ docker run -d --name research-agent -p 3000:3000 \
 1. 誰かの Claude Desktop で「製造業のDX事例を調査して」と入力
 2. 「調査を開始しました」と返る
 3. 1〜2分後に「結果を教えて」と入力
-4. サマリーと CSV のダウンロード URL が返れば成功（ブラウザで `https://あなたのRenderドメイン/api/runs/<runId>/csv` を開くとダウンロード）
+4. サマリーと CSV のダウンロード URL が返れば成功（**CSV はブラウザで URL を開くとダウンロード**される）
+
+調査の進捗は、`GET /api/runs/:runId` の `status`（pending / running / completed / failed）または **Inngest Cloud のダッシュボード**（Functions → Run のタイムライン）で確認できる。
+
+---
+
+## 5. コード変更後の再デプロイ
+
+- 変更を GitHub に push すると、Render が自動でビルド・デプロイする。
+- すぐ反映したいときは、Render のサービス画面で **Manual Deploy** → **Clear build cache & deploy** を実行する。
 
 ---
 
 ## トラブルシューティング
 
-- **結果が取れない**: サーバーの `DATA_DIR` が永続化されているか確認。Render の Free プランでは再デプロイで消えるため、Persistent Disk をマウントするか有料プランで永続化する。
+- **結果が取れない / 以前の runId で CSV が見つからない**: research-agent に「一定時間後に結果を削除する」仕様はない。結果は `DATA_DIR` のファイルに保存されるが、**Render Free ではディスクが永続化されない**ため、インスタンスのスリープ復帰・再起動・再デプロイでファイルが消える。そのため、完了直後は取れても、しばらく経ってから同じ runId の CSV URL を開くと「Run not found」になる。対処: **Persistent Disk** を `DATA_DIR` にマウントする（Render の Disks で追加）。または将来的に DB に保存する実装にすると結果が残る。
 - **調査が始まらない / Inngest に Run が出ない**:  
   - **Render** に `INNGEST_EVENT_KEY` と `INNGEST_SIGNING_KEY` が設定されているか確認。  
   - Inngest のアプリで **Serve URL** が `https://あなたのRenderドメイン/api/inngest` になっているか確認。  
   - MCP には **INNGEST_EVENT_KEY を入れない**（サーバーだけが送る）。
 - **401 Unauthorized**: サーバーで `RESEARCH_AGENT_API_KEY` を設定している場合、MCP の `RESEARCH_AGENT_API_KEY` を同じ値に設定する。
+- **Claude が「CSV 取得に失敗しました」と言う**: CSV の URL は**ブラウザで開くとダウンロード**される。Claude が URL をプログラムで取得しようとすると失敗することがある。MCP の案内文で「ブラウザで開いてください」「URL の取得は行わないでください」と返すようにしているので、その案内に従いユーザーがブラウザで URL を開けばよい。サーバー側の CSV エンドポイントは正常に動作している。

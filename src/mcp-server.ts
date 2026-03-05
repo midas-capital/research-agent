@@ -10,9 +10,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { inngest } from "./inngest/client.js";
-import { readRunState, writeRunState } from "./lib/run-store.js";
+import { readRunState, writeRunState, getLatestRunId } from "./lib/run-store.js";
 import { writeExcel } from "./lib/excel.js";
-import { config } from "./config.js";
 import type { RunState } from "./types.js";
 
 const SERVER_URL = process.env.RESEARCH_AGENT_SERVER_URL ?? "";
@@ -216,27 +215,6 @@ server.registerTool(
     };
   }
 );
-
-async function getLatestRunId(): Promise<string | null> {
-  const fs = await import("node:fs/promises");
-  const path = await import("node:path");
-  const runsDir = path.join(config.dataDir, "runs");
-  try {
-    const files = await fs.readdir(runsDir);
-    const jsonFiles = files.filter((f) => f.endsWith(".json"));
-    if (jsonFiles.length === 0) return null;
-    const stats = await Promise.all(
-      jsonFiles.map(async (f) => ({
-        name: f,
-        mtime: (await fs.stat(path.join(runsDir, f))).mtimeMs,
-      }))
-    );
-    stats.sort((a, b) => b.mtime - a.mtime);
-    return stats[0].name.replace(/\.json$/, "");
-  } catch {
-    return null;
-  }
-}
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

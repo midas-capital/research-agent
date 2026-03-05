@@ -7,6 +7,19 @@
 
 ---
 
+## 現状まとめ（サマリー）
+
+| 項目 | 状態 |
+|------|------|
+| **本番デプロイ** | ✅ Render にデプロイ済み。Inngest Cloud の Serve URL 設定済み。 |
+| **E2E 動作** | ✅ Claude → 調査開始 → 結果・CSV 取得まで確認済み。 |
+| **結果の取得** | 完了時は MCP がサマリーと CSV の URL を返す。CSV は**ユーザーがブラウザで URL を開くとダウンロード**される（Claude が URL を取得すると失敗するため、案内文で「ブラウザで開く」旨を明記している）。 |
+| **進捗確認** | 状態は `GET /api/runs/:runId` の `status`（pending / running / completed / failed）。詳細なステップは Inngest Dev UI または Inngest Cloud のダッシュボードで確認可能。 |
+| **結果の保持** | **一定時間後の自動削除ではない**。`DATABASE_URL` を設定すると RunState は **Postgres** に保存され、複数インスタンス・再起動後も結果が残る（「Inngest 上ではあるのに見つからない」を解消）。未設定時は `DATA_DIR` のファイルに保存され、Render Free では永続化されないため Persistent Disk または DB 推奨。 |
+| **未実施・今後** | 認証・マルチテナント、MCP の npm パッケージ化（誰でも同じ設定で使えるようにする）は任意の検討事項。 |
+
+---
+
 ## 1. 全体のステップ（フロー）
 
 ### 1.1 ユーザー視点の流れ
@@ -45,7 +58,7 @@
 | —    | Excel 出力 | **現状は未使用**。Inngest 側では Excel を書き出さず、RunState のみ。                         |
 
 
-**出力**: 完了時は `DATA_DIR/runs/<runId>.json` に `status`, `query`, `axes`, `cases`, `completedAt` が入る。Excel ファイルは Inngest では作らない。
+**出力**: 完了時は RunState（`status`, `query`, `axes`, `cases`, `completedAt`）を `DATABASE_URL` 設定時は Postgres の `run_states` テーブルに、未設定時は `DATA_DIR/runs/<runId>.json` に保存。Excel ファイルは Inngest では作らない。
 
 ---
 
@@ -66,7 +79,8 @@
 
 - **MCP**  
   - `search_cases`：リモート時は `POST /api/cases/search`、ローカル時は `inngest.send`  
-  - `get_case_study_result`：リモート時はサーバー API、ローカル時は RunState 読み＋必要時 Excel 生成
+  - `get_case_study_result`：リモート時はサーバー API、ローカル時は RunState 読み＋必要時 Excel 生成  
+  - リモート時の結果案内では、CSV URL を「ブラウザで開くとダウンロードされる」旨と「URL の取得は行わず案内する」旨を明記（Claude が URL を fetch すると失敗するため）
 - **サーバー（Express）**  
   - `POST /api/cases/search`（runId 生成・Inngest 送信）  
   - `GET /api/inngest`（Inngest serve）  
@@ -97,9 +111,10 @@
 
 ### 2.3 未実装・今後の検討
 
-- DB による RunState 保存（現状はファイルのみ）  
 - 認証・マルチテナント（現状は `RESEARCH_AGENT_API_KEY` の単一キー程度）  
 - Inngest 以外のキュー（現状は Inngest 前提）
+
+（RunState の DB 保存は実装済み。`DATABASE_URL` 設定時は Postgres に保存。）
 
 ---
 
@@ -108,9 +123,9 @@
 
 | 項目         | 内容                                                                                                                                                   |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **完全クラウド** | Render にサーバーをデプロイし、Inngest Cloud の Serve URL を `https://<Render>/api/inngest` に設定。MCP は `RESEARCH_AGENT_SERVER_URL` のみ設定し、`INNGEST_EVENT_KEY` は持たない。 |
+| **完全クラウド** | Render にサーバーをデプロイし、Inngest Cloud の Serve URL を `https://<Render>/api/inngest` に設定。MCP は `RESEARCH_AGENT_SERVER_URL` のみ設定し、`INNGEST_EVENT_KEY` は持たない。**本番運用済み。** |
 | **ローカル**   | `npm run dev` と `npm run inngest:dev` の 2 ターミナル。MCP は `DATA_DIR` / `OUTPUT_DIR` を設定。                                                                 |
-| **永続化**    | RunState は `DATA_DIR`（例: `/app/data`）に保存。Render Free では再デプロイで消えるため、Persistent Disk または有料プラン推奨。                                                       |
+| **永続化**    | `DATABASE_URL` 設定時: RunState は Postgres の `run_states` に保存され、複数インスタンス・再起動後も残る。未設定時: `DATA_DIR` に保存。Render Free でファイル運用の場合は Persistent Disk をマウントするか、`DATABASE_URL` で DB 利用を推奨。 |
 
 
 ---
@@ -132,7 +147,7 @@
 | HTML 取得        | `src/lib/fetch-html.js`               |
 | 選別・構造化         | `src/lib/screen-structure.js`         |
 | 重複フラグ          | `src/lib/dedup.js`                    |
-| RunState 読み書き  | `src/lib/run-store.js`                |
+| RunState 読み書き  | `src/lib/run-store.ts`（`DATABASE_URL` あり時は `src/lib/db.ts` 経由で Postgres） |
 | Excel（オプション）   | `src/lib/excel.ts`                    |
 | デプロイ手順         | `docs/DEPLOY.md`                      |
 | ローカル手順         | `docs/QUICKSTART.md`                  |

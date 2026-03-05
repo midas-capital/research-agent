@@ -11,7 +11,8 @@ import { randomUUID } from "node:crypto";
 import { serve } from "inngest/express";
 import { inngest } from "./inngest/client.js";
 import { caseStudySearch, caseStudySupplement } from "./inngest/functions/case-study.js";
-import { readRunState } from "./lib/run-store.js";
+import { readRunState, getLatestRunId } from "./lib/run-store.js";
+import { initRunStatesTable } from "./lib/db.js";
 import { config, getExcelPath } from "./config.js";
 
 const app = express();
@@ -63,19 +64,10 @@ app.get("/health", (_req, res) => {
 // デプロイ用: 他端末の MCP が結果を取得
 app.get("/api/runs/latest", checkApiKey, async (_req, res) => {
   try {
-    const runsDir = path.join(config.dataDir, "runs");
-    const files = await fs.readdir(runsDir);
-    const jsonFiles = files.filter((f) => f.endsWith(".json"));
-    if (jsonFiles.length === 0) return res.status(404).json({ error: "No runs found" });
-    const stats = await Promise.all(
-      jsonFiles.map(async (f) => ({
-        name: f.replace(/\.json$/, ""),
-        mtime: (await fs.stat(path.join(runsDir, f))).mtimeMs,
-      }))
-    );
-    stats.sort((a, b) => b.mtime - a.mtime);
-    res.json({ runId: stats[0].name });
-  } catch (err) {
+    const runId = await getLatestRunId();
+    if (!runId) return res.status(404).json({ error: "No runs found" });
+    res.json({ runId });
+  } catch {
     res.status(404).json({ error: "No runs found" });
   }
 });
@@ -143,7 +135,10 @@ app.get("/api/runs/:runId/csv", checkApiKey, async (req, res) => {
   res.send(csv);
 });
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-  console.log("Inngest endpoint: http://localhost:%s/api/inngest", port);
-});
+(async () => {
+  await initRunStatesTable();
+  app.listen(port, () => {
+    console.log(`Server listening on http://localhost:${port}`);
+    console.log("Inngest endpoint: http://localhost:%s/api/inngest", port);
+  });
+})();

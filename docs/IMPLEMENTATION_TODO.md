@@ -7,8 +7,8 @@
 
 ## 現在の段階（要約）
 
-- **完了**: 1〜6 のほぼすべて（プロジェクト基盤〜MCP・デプロイ資料まで）
-- **未実施**: 7 の「本番デプロイの実行」と、オプションの Excel を Inngest で生成するかどうか
+- **完了**: 1〜7 の本番デプロイまで（Render デプロイ・Inngest Cloud・E2E 動作確認済み）
+- **未実施**: オプションの「Inngest 完了時に Excel を生成」、8 の「今後の検討」（DB 保存・マルチテナント等）
 
 下のチェックリストで **最初に `[ ]` になっている項目** が「これからやるべき段階」です。
 
@@ -86,7 +86,7 @@
 - [x] リモート時: POST /api/cases/search を呼ぶ
 - [x] ローカル時: inngest.send("cases/search") を呼ぶ
 - [x] ツール get_case_study_result: runId 省略時は直近取得
-- [x] リモート時: GET /api/runs/:runId、GET /api/runs/latest、結果は CSV URL で案内
+- [x] リモート時: GET /api/runs/:runId、GET /api/runs/latest、結果は CSV URL で案内（ブラウザで開いてダウンロードする旨を明記し、URL の取得は行わないよう案内）
 - [x] ローカル時: readRunState、必要なら writeExcel して file:// で案内
 - [x] 状態に応じたメッセージ（running / completed / failed）
 
@@ -102,14 +102,14 @@
 - [x] docs/QUICKSTART.md: ローカル 2 ターミナル、MCP 設定
 - [x] docs/STATUS.md: 全体フローと現状サマリー
 - [x] docs/IMPLEMENTATION_TODO.md: 本ファイル（実装手順の細分化）
-- [ ] Render（または他 PaaS）へ実際にデプロイし、Inngest Cloud の Serve URL を設定
-- [ ] 本番で 1 回以上 E2E 動作確認（Claude → 調査開始 → 結果・CSV 取得）
+- [x] Render（または他 PaaS）へ実際にデプロイし、Inngest Cloud の Serve URL を設定
+- [x] 本番で 1 回以上 E2E 動作確認（Claude → 調査開始 → 結果・CSV 取得）
 
 ---
 
 ## 8. 今後の検討（任意）
 
-- [ ] RunState を DB に保存（ファイルではなく）
+- [x] RunState を DB に保存（`DATABASE_URL` 設定時は Postgres に保存。未設定時は従来どおりファイル）
 - [ ] 認証・マルチテナント（複数ユーザー・API キー管理）
 - [ ] Inngest 完了時に Excel も生成するオプション
 
