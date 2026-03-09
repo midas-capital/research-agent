@@ -26,7 +26,9 @@ function checkApiKey(req: express.Request, res: express.Response, next: express.
   res.status(401).json({ error: "Invalid or missing API key" });
 }
 
-app.use(express.json());
+// Inngest の POST /api/inngest はステップ結果などを含むためペイロードが大きくなりやすい（デフォルト 100kb で Payload Too Large になる）
+const jsonLimit = process.env.EXPRESS_JSON_LIMIT ?? "10mb";
+app.use(express.json({ limit: jsonLimit }));
 
 // 事例調査ジョブを開始する API（サーバー側で Inngest にイベント送信）
 app.post("/api/cases/search", checkApiKey, async (req, res) => {
