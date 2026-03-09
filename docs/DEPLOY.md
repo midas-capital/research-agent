@@ -75,7 +75,7 @@
 | 変数 | 必須 | 説明 |
 |------|------|------|
 | `OPENAI_API_KEY` | ✅ | OpenAI API キー（gpt-4o-mini 用） |
-| `SERPAPI_API_KEY` | ✅ | SerpAPI キー |
+| `SERPER_API_KEY` | ✅ | Serper.dev の Web検索 API キー（なければ代わりに `SERPAPI_API_KEY` も参照） |
 | `INNGEST_EVENT_KEY` | ✅ | Inngest Cloud の Event key（サーバーが `inngest.send()` する時に使用） |
 | `INNGEST_SIGNING_KEY` | ✅ | Inngest Cloud の Signing key（Cloud が `/api/inngest` を呼ぶ時の検証用） |
 | `APP_URL` | ✅ | デプロイ後の URL（例: `https://xxx.onrender.com`） |
