@@ -47,6 +47,11 @@ const MANUAL_CONFIG = `
 `;
 
 async function main(): Promise<void> {
+  console.log("=== research-agent-mcp-setup を開始します ===");
+  console.log(`Node バージョン: ${process.version}`);
+  console.log(`プラットフォーム: ${process.platform}`);
+  console.log(`引数: ${process.argv.slice(2).join(" ") || "(なし)"}`);
+
   const urlFromArg = process.argv.find((a) => a.startsWith("--url="))?.slice("--url=".length);
   const apiKeyFromArg = process.argv.find((a) => a.startsWith("--api-key="))?.slice("--api-key=".length);
 
@@ -70,6 +75,13 @@ async function main(): Promise<void> {
       "API キー（サーバーが要求する場合のみ。不要なら Enter）: "
     );
     rl.close();
+    console.log("\n入力完了:");
+    console.log(`- サーバー URL: ${serverUrl}`);
+    console.log(`- API キー: ${apiKey ? "入力あり（値は表示しません）" : "未入力"}`);
+  } else {
+    console.log("\nコマンドライン引数から設定を読み込みました:");
+    console.log(`- サーバー URL: ${serverUrl}`);
+    console.log(`- API キー: ${apiKey ? "引数で指定あり（値は表示しません）" : "指定なし"}`);
   }
 
   if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
