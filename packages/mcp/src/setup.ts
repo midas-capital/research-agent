@@ -77,11 +77,14 @@ async function main(): Promise<void> {
   }
 
   const configPath = getClaudeConfigPath();
+  console.log(`\nClaude 設定ファイルのパス: ${configPath}`);
   let config: Record<string, unknown> = {};
 
   try {
+    console.log("設定ファイルを読み込み中です...");
     const raw = await fs.readFile(configPath, "utf-8");
     config = JSON.parse(raw) as Record<string, unknown>;
+    console.log("設定ファイルの読み込みが完了しました。");
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
     if (err?.code === "ENOENT") {
@@ -112,8 +115,10 @@ async function main(): Promise<void> {
   config.mcpServers = mcpServers;
 
   try {
+    console.log("設定ファイルを書き込み中です...");
     await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
+    console.log("設定ファイルの書き込みが完了しました。");
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
     console.log("設定ファイルの書き込みに失敗しました:", err?.message ?? e);
