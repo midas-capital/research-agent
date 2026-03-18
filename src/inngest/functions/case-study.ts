@@ -7,7 +7,7 @@ import { searchWeb } from "../../lib/search.js";
 import { fetchHtmlBatch } from "../../lib/fetch-html.js";
 import { htmlToStructuredJson } from "../../lib/html-to-json.js";
 import { screenAndStructure } from "../../lib/screen-structure.js";
-import { flagDuplicates } from "../../lib/dedup.js";
+import { dedupCases } from "../../lib/dedup.js";
 import type { Axis, CaseItem, SearchResultItem } from "../../types.js";
 
 const TARGET_COUNT = config.maxCasesTarget;
@@ -84,7 +84,7 @@ export const caseStudySearch = inngest.createFunction(
       return all;
     });
 
-    // 検索結果をフラット化（URL重複は後で除く）
+    // 検索結果をフラット化
     const allSearchItems: (SearchResultItem & { axisName: string; categoryName: string })[] = [];
     for (const r of searchResults) {
       for (const item of [...r.ja, ...r.en]) {
@@ -99,13 +99,13 @@ export const caseStudySearch = inngest.createFunction(
     // Phase 8–10: HTML取得 + HTML→JSON + 選別・構造化
     // 1ステップで「HTML→CaseItem[]」まで完結させ、巨大なHTMLマップをStep出力に残さない
     const cases = await step.run("fetch-and-screen", async () => {
-      // URL ごとにユニーク化して HTML を取得
+      // URL ごとにユニーク化して HTML を取得し、そのユニークな URL だけを構造化する
       const uniqItems = Array.from(
-        new Map(allSearchItems.map((i) => [i.url, i])).values()
+        new Map(allSearchItems.map((i) => [i.url.toLowerCase().trim(), i])).values()
       );
       const htmlMap = await fetchHtmlBatch(uniqItems);
 
-      const itemsWithHtml = allSearchItems.filter((item) => htmlMap.get(item.url));
+      const itemsWithHtml = uniqItems.filter((item) => htmlMap.get(item.url));
       const results = await mapWithConcurrency(
         itemsWithHtml,
         SCREEN_CONCURRENCY,
@@ -168,9 +168,11 @@ export const caseStudySupplement = inngest.createFunction(
     let cases = state.cases!;
     const axes = state.axes!;
 
-    if (cases.length >= TARGET_COUNT || round > MAX_SUPPLEMENT) {
+    const dedupCountForCurrent = dedupCases(cases).length;
+
+    if (dedupCountForCurrent >= TARGET_COUNT || round > MAX_SUPPLEMENT) {
       await step.run("finalize", async () => {
-        const deduped = flagDuplicates(cases);
+        const deduped = dedupCases(cases);
         await writeRunState({
           ...state,
           status: "completed",
@@ -201,7 +203,7 @@ export const caseStudySupplement = inngest.createFunction(
 
     if (underperforming.length === 0) {
       await step.run("finalize-no-supplement", async () => {
-        const deduped = flagDuplicates(cases);
+        const deduped = dedupCases(cases);
         await writeRunState({
           ...state,
           status: "completed",
@@ -255,10 +257,12 @@ export const caseStudySupplement = inngest.createFunction(
 
     // 補充分も HTML→CaseItem[] までを1ステップにまとめて、Step出力サイズを抑える
     const newCases = await step.run("supplement-fetch-and-screen", async () => {
-      const uniqItems = Array.from(new Map(supplementItems.map((i) => [i.url, i])).values());
+      const uniqItems = Array.from(
+        new Map(supplementItems.map((i) => [i.url.toLowerCase().trim(), i])).values()
+      );
       const htmlMap = await fetchHtmlBatch(uniqItems);
 
-      const itemsWithHtml = supplementItems.filter((item) => htmlMap.get(item.url));
+      const itemsWithHtml = uniqItems.filter((item) => htmlMap.get(item.url));
       const results = await mapWithConcurrency(
         itemsWithHtml,
         SCREEN_CONCURRENCY,
@@ -277,10 +281,11 @@ export const caseStudySupplement = inngest.createFunction(
     });
 
     const merged = [...cases, ...newCases];
+    const dedupCountForMerged = dedupCases(merged).length;
 
-    if (merged.length >= TARGET_COUNT || round >= MAX_SUPPLEMENT) {
+    if (dedupCountForMerged >= TARGET_COUNT || round >= MAX_SUPPLEMENT) {
       await step.run("finalize-after-supplement", async () => {
-        const deduped = flagDuplicates(merged);
+        const deduped = dedupCases(merged);
         await writeRunState({
           ...state,
           status: "completed",

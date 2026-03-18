@@ -1,33 +1,31 @@
 import type { CaseItem } from "../types.js";
 
 /**
- * フェーズ12: URLと企業名＋課題の組み合わせで重複を検出。削除せず重複フラグを立てる。
+ * URL と 「企業名＋課題」の組み合わせの両方を使って重複を除去する。
+ * 先に現れたレコードを優先し、2 件目以降は配列から取り除く。
  */
-export function flagDuplicates(cases: CaseItem[]): CaseItem[] {
-  const byUrl = new Map<string, CaseItem>();
-  const byCompanyChallenge = new Map<string, CaseItem>();
+export function dedupCases(cases: CaseItem[]): CaseItem[] {
+  const seenUrls = new Set<string>();
+  const seenCompanyChallenge = new Set<string>();
+  const result: CaseItem[] = [];
 
   for (const c of cases) {
     const urlKey = c.url.toLowerCase().trim();
     const ccKey = `${(c.companyName || "").trim()}|${(c.challenge || "").trim()}`.toLowerCase();
-    if (!ccKey || ccKey === "|") continue;
 
-    const firstByUrl = byUrl.get(urlKey);
-    const firstByCC = byCompanyChallenge.get(ccKey);
+    const hasUrl = seenUrls.has(urlKey);
+    const hasCC = ccKey && ccKey !== "|" && seenCompanyChallenge.has(ccKey);
 
-    if (firstByUrl && firstByUrl !== c) {
-      (c as CaseItem & { duplicateOf?: string }).duplicateOf = firstByUrl.url;
-    } else {
-      byUrl.set(urlKey, c);
+    if (hasUrl || hasCC) {
+      continue;
     }
 
-    if (firstByCC && firstByCC !== c) {
-      (c as CaseItem & { duplicateOf?: string }).duplicateOf =
-        (c as CaseItem & { duplicateOf?: string }).duplicateOf ?? `${firstByCC.companyName}|${firstByCC.challenge}`;
-    } else if (!firstByCC) {
-      byCompanyChallenge.set(ccKey, c);
+    seenUrls.add(urlKey);
+    if (ccKey && ccKey !== "|") {
+      seenCompanyChallenge.add(ccKey);
     }
+    result.push(c);
   }
 
-  return cases;
+  return result;
 }
