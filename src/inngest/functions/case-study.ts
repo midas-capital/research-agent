@@ -52,7 +52,11 @@ export const caseStudySearch = inngest.createFunction(
   },
   { event: "cases/search" },
   async ({ event, step }) => {
-    const { runId, query } = event.data as { runId: string; query: string };
+    const { runId, query, clientId } = event.data as {
+      runId: string;
+      query: string;
+      clientId?: string;
+    };
 
     // Phase 5: 軸・カテゴリ生成
     const axes = await step.run("generate-axes", async () => {
@@ -128,6 +132,7 @@ export const caseStudySearch = inngest.createFunction(
       await writeRunState({
         runId,
         query,
+        ...(clientId?.trim() ? { ownerClientId: clientId.trim() } : {}),
         status: "running",
         axes,
         cases,

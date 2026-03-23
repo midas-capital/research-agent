@@ -32,6 +32,29 @@ function question(rl: readline.Interface, prompt: string): Promise<string> {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** GET /health の応答。取得失敗時は null。フィールドが無い旧サーバーは undefined のまま（＝未確定として両方聞く） */
+async function fetchServerHealth(baseUrl: string): Promise<{
+  requireApiKey?: boolean;
+  requireClientId?: boolean;
+} | null> {
+  const url = `${baseUrl.replace(/\/$/, "")}/health`;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 15_000);
+  try {
+    const res = await fetch(url, { method: "GET", signal: ac.signal });
+    if (!res.ok) return null;
+    const j = (await res.json()) as Record<string, unknown>;
+    const out: { requireApiKey?: boolean; requireClientId?: boolean } = {};
+    if (typeof j.requireApiKey === "boolean") out.requireApiKey = j.requireApiKey;
+    if (typeof j.requireClientId === "boolean") out.requireClientId = j.requireClientId;
+    return out;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function verifyCredentials(
   baseUrl: string,
   apiKey: string,
@@ -126,33 +149,76 @@ async function main(): Promise<void> {
       rl,
       "デプロイ済み research-agent サーバーの URL を入力してください（例: https://xxx.onrender.com）: "
     );
+    rl.close();
     if (!serverUrl) {
       console.log("URL が入力されませんでした。セットアップを中止します。");
-      rl.close();
       process.exit(1);
     }
-    apiKey = await question(
-      rl,
-      "API キー（サーバーが要求する場合のみ。不要なら Enter）: "
-    );
-    clientId = await question(
-      rl,
-      "Client ID（利用者を識別するID。サーバーで必須の場合のみ。不要なら Enter）: "
-    );
-    rl.close();
-    console.log("\n入力完了:");
-    console.log(`- サーバー URL: ${serverUrl}`);
-    console.log(`- API キー: ${apiKey ? "入力あり（値は表示しません）" : "未入力"}`);
-    console.log(`- Client ID: ${clientId ? "入力あり（値は表示しません）" : "未入力"}`);
-  } else {
-    console.log("\nコマンドライン引数から設定を読み込みました:");
-    console.log(`- サーバー URL: ${serverUrl}`);
-    console.log(`- API キー: ${apiKey ? "引数で指定あり（値は表示しません）" : "指定なし"}`);
-    console.log(`- Client ID: ${clientId ? "引数で指定あり（値は表示しません）" : "指定なし"}`);
   }
 
   if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
     serverUrl = "https://" + serverUrl;
+  }
+
+  console.log("\nサーバーの要件を確認しています（GET /health）...");
+  const health = await fetchServerHealth(serverUrl);
+  if (health && (health.requireApiKey !== undefined || health.requireClientId !== undefined)) {
+    console.log(
+      `- サーバー側: API キー ${health.requireApiKey === true ? "必須" : health.requireApiKey === false ? "不要" : "不明"} / Client ID ${health.requireClientId === true ? "必須" : health.requireClientId === false ? "不要" : "不明"}`
+    );
+  } else if (health && Object.keys(health).length === 0) {
+    console.log("（/health に要件フィールドがありません。未指定項目は順に聞きます。）");
+  } else {
+    console.log(
+      "（/health を取得できませんでした。API キー・Client ID は従来どおり、未指定なら順に聞きます。）"
+    );
+  }
+
+  // サーバーが不要と言っている項目は聞かない。health 取得失敗時は両方聞く（require* !== false）
+  const shouldPromptApi = apiKey === "" && (health?.requireApiKey !== false);
+  const shouldPromptClient = clientId === "" && (health?.requireClientId !== false);
+  const needsAnyPrompt = shouldPromptApi || shouldPromptClient;
+
+  if (needsAnyPrompt) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    if (urlFromArg?.trim()) {
+      console.log(
+        "\n不足している項目を順に入力してください（サーバーが不要としている項目はスキップ済みです）。不要なら Enter。\n"
+      );
+    }
+
+    if (shouldPromptApi) {
+      apiKey = await question(
+        rl,
+        "API キー（サーバーが要求する場合のみ。不要なら Enter）: "
+      );
+    }
+    if (shouldPromptClient) {
+      clientId = await question(
+        rl,
+        "Client ID（利用者を識別するID。サーバーで必須の場合のみ。不要なら Enter）: "
+      );
+    }
+    rl.close();
+    console.log("\n入力の確認:");
+    console.log(`- サーバー URL: ${serverUrl}`);
+    console.log(`- API キー: ${apiKey ? "入力あり（値は表示しません）" : "未入力"}`);
+    console.log(`- Client ID: ${clientId ? "入力あり（値は表示しません）" : "未入力"}`);
+  } else if (urlFromArg?.trim() && apiKey !== "" && clientId !== "") {
+    console.log("\nコマンドライン引数から設定を読み込みました（対話なし）:");
+    console.log(`- サーバー URL: ${serverUrl}`);
+    console.log(`- API キー: 引数で指定あり（値は表示しません）`);
+    console.log(`- Client ID: 引数で指定あり（値は表示しません）`);
+  } else if (urlFromArg?.trim() && !needsAnyPrompt) {
+    console.log("\nコマンドライン引数とサーバー要件により、追加の入力は不要です。");
+    console.log(`- サーバー URL: ${serverUrl}`);
+    console.log(`- API キー: ${apiKey ? "引数で指定あり（値は表示しません）" : "未入力（サーバー不要）"}`);
+    console.log(`- Client ID: ${clientId ? "引数で指定あり（値は表示しません）" : "未入力（サーバー不要）"}`);
+  } else {
+    console.log("\n入力の確認:");
+    console.log(`- サーバー URL: ${serverUrl}`);
+    console.log(`- API キー: ${apiKey ? "入力あり（値は表示しません）" : "未入力"}`);
+    console.log(`- Client ID: ${clientId ? "入力あり（値は表示しません）" : "未入力"}`);
   }
 
   if (clientId && !UUID_RE.test(clientId)) {

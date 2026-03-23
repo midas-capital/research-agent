@@ -62,9 +62,21 @@ export async function writeRunStateToDb(state: RunState): Promise<void> {
   );
 }
 
-export async function getLatestRunIdFromDb(): Promise<string | null> {
+export async function getLatestRunIdFromDb(clientId?: string): Promise<string | null> {
   const c = await ensureDbConnected();
   if (!c) return null;
+  const trimmed = clientId?.trim();
+  if (trimmed) {
+    const r = await c.query(
+      `SELECT run_id FROM run_states
+       WHERE payload->>'ownerClientId' = $1
+       ORDER BY (payload->>'createdAt') DESC NULLS LAST
+       LIMIT 1`,
+      [trimmed]
+    );
+    if (r.rows.length === 0) return null;
+    return r.rows[0].run_id as string;
+  }
   const r = await c.query(
     `SELECT run_id FROM run_states ORDER BY (payload->>'createdAt') DESC NULLS LAST LIMIT 1`
   );

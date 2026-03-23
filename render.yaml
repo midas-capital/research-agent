@@ -1,0 +1,19 @@
+# Render Blueprint 用（任意）
+# 新規に Blueprint からサービスを作るときの例。既存 Web Service がある場合はダッシュボードの Auto-Deploy 設定で十分なことが多いです。
+# ドキュメント: https://render.com/docs/blueprint-spec
+#
+# 使い方: Render Dashboard → New → Blueprint → このリポジトリを選択
+# シークレット（API キー等）はダッシュボードの Environment で設定するか、envVars の sync: false で後から追加。
+
+services:
+  - type: web
+    name: research-agent
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /health
+    # 環境変数は Render 上で設定（Git にコミットしない）
+    # 必須例: OPENAI_API_KEY, SERPER_API_KEY, INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY, APP_URL
+    # 推奨: DATABASE_URL（本番）

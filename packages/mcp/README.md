@@ -13,7 +13,7 @@
    ```bash
    npx research-agent-mcp-setup
    ```
-2. 表示に従って **サーバー URL** を入力（例: `https://xxx.onrender.com`）。API キーが必要なサーバーなら、同じタイミングで入力できます。サーバーで **Client ID 必須**の場合は、**Client ID** も入力します。
+2. 表示に従って **サーバー URL** を入力（例: `https://xxx.onrender.com`）。続けて **API キー**、**Client ID** を順に聞かれます（不要な項目は Enter）。`--url=...` だけ付けて実行した場合も、同様に **API キー → Client ID** の順で未入力分だけ聞かれます。
 3. **Claude Desktop を再起動**する。
 
 これで設定完了です。Claude で「〇〇の事例を調査して」と試せます。

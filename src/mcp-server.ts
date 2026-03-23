@@ -16,10 +16,12 @@ import type { RunState } from "./types.js";
 
 const SERVER_URL = process.env.RESEARCH_AGENT_SERVER_URL ?? "";
 const SERVER_API_KEY = process.env.RESEARCH_AGENT_API_KEY ?? "";
+const SERVER_CLIENT_ID = (process.env.RESEARCH_AGENT_CLIENT_ID ?? "").trim();
 
 function apiHeaders(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
   if (SERVER_API_KEY) h["X-API-Key"] = SERVER_API_KEY;
+  if (SERVER_CLIENT_ID) h["X-Client-Id"] = SERVER_CLIENT_ID;
   return h;
 }
 

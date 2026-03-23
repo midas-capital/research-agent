@@ -42,24 +42,32 @@ export async function updateRunState(
   await writeRunState({ ...current, ...patch });
 }
 
-/** 直近の runId を取得（DB またはファイルの更新日時順） */
-export async function getLatestRunId(): Promise<string | null> {
+/** 直近の runId を取得（DB またはファイル。clientId 指定時はその利用者の Run のみ） */
+export async function getLatestRunId(clientId?: string): Promise<string | null> {
   if (useDb()) {
-    return getLatestRunIdFromDb();
+    return getLatestRunIdFromDb(clientId);
   }
   const runsDir = path.join(config.dataDir, "runs");
   try {
     const files = await fs.readdir(runsDir);
     const jsonFiles = files.filter((f) => f.endsWith(".json"));
     if (jsonFiles.length === 0) return null;
-    const stats = await Promise.all(
-      jsonFiles.map(async (f) => ({
-        name: f.replace(/\.json$/, ""),
-        mtime: (await fs.stat(path.join(runsDir, f))).mtimeMs,
-      }))
+    const trimmed = clientId?.trim();
+    const entries = await Promise.all(
+      jsonFiles.map(async (f) => {
+        const runId = f.replace(/\.json$/, "");
+        const raw = await fs.readFile(path.join(runsDir, f), "utf-8");
+        const state = JSON.parse(raw) as RunState;
+        return { runId, createdAt: state.createdAt ?? "", ownerClientId: state.ownerClientId };
+      })
     );
-    stats.sort((a, b) => b.mtime - a.mtime);
-    return stats[0].name;
+    let filtered = entries;
+    if (trimmed) {
+      filtered = entries.filter((e) => e.ownerClientId === trimmed);
+    }
+    if (filtered.length === 0) return null;
+    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return filtered[0].runId;
   } catch {
     return null;
   }

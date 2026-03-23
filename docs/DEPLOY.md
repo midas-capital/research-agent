@@ -129,6 +129,8 @@
 6. **Disk**（`DATABASE_URL` 未設定時）: Persistent Disk を追加し、`/app/data` にマウント（`DATA_DIR=/app/data`、`OUTPUT_DIR=/app/data/output` など）。
 7. 発行された URL を **APP_URL** と Inngest の App URL に設定
 
+**GitHub に push したら自動デプロイ**にしたい場合は [RENDER_AUTO_DEPLOY.md](./RENDER_AUTO_DEPLOY.md) を参照（既存サービスでは **Settings → Build & Deploy → Auto-Deploy: Yes** が中心）。リポジトリ直下の `render.yaml` は Blueprint 用の例です。
+
 ---
 
 ### C. Fly.io でデプロイ

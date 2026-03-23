@@ -23,6 +23,8 @@ export interface CaseItem {
 export interface RunState {
   runId: string;
   query: string;
+  /** MCP が送る X-Client-Id と一致する場合のみ Run を参照できる（未設定は従来どおり API キーのみ） */
+  ownerClientId?: string;
   status: "pending" | "running" | "completed" | "failed";
   axes?: Axis[];
   cases?: CaseItem[];
