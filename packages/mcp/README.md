@@ -13,7 +13,7 @@
    ```bash
    npx research-agent-mcp-setup
    ```
-2. 表示に従って **サーバー URL** を入力（例: `https://xxx.onrender.com`）。API キーが必要なサーバーなら、同じタイミングで入力できます。
+2. 表示に従って **サーバー URL** を入力（例: `https://xxx.onrender.com`）。API キーが必要なサーバーなら、同じタイミングで入力できます。サーバーで **Client ID 必須**の場合は、**Client ID** も入力します。
 3. **Claude Desktop を再起動**する。
 
 これで設定完了です。Claude で「〇〇の事例を調査して」と試せます。
@@ -24,7 +24,11 @@
 npx research-agent-mcp-setup --url=https://your-app.onrender.com
 # API キーが必要な場合
 npx research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-key
+# Client ID が必要な場合（サーバーで `RESEARCH_AGENT_REQUIRE_CLIENT_ID=true` で運用しているとき）
+npx research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-key --client-id=your-client-id
 ```
+
+セットアップ時、デフォルトで **`GET /api/verify`** を呼び、サーバーに設定されている `RESEARCH_AGENT_API_KEY` と一致するか（および Client ID 必須時はヘッダが付くか）を確認します。オフラインなどで検証を飛ばす場合は `--skip-verify` を付けてください。
 
 ## 手動で設定する場合
 
@@ -39,7 +43,8 @@ npx research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-
       "args": ["research-agent-mcp"],
       "env": {
         "RESEARCH_AGENT_SERVER_URL": "https://your-app.onrender.com",
-        "RESEARCH_AGENT_API_KEY": "optional-if-server-requires"
+        "RESEARCH_AGENT_API_KEY": "optional-if-server-requires",
+        "RESEARCH_AGENT_CLIENT_ID": "optional-if-server-requires-client-id"
       }
     }
   }
@@ -50,6 +55,7 @@ npx research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-
 
 - **RESEARCH_AGENT_SERVER_URL**: 必須。research-agent サーバーの URL。
 - **RESEARCH_AGENT_API_KEY**: サーバーが API キーを要求している場合のみ同じ値を設定。
+- **RESEARCH_AGENT_CLIENT_ID**: サーバーが利用者識別を必須にしている場合（`RESEARCH_AGENT_REQUIRE_CLIENT_ID=true`）に、その利用者に割り当てた Client ID を設定。
 
 ## 使い方
 
