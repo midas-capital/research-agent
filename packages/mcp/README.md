@@ -1,5 +1,7 @@
 # research-agent-mcp
 
+**npm バージョン: 1.0.7**（[package.json](./package.json) の `version` と同期）
+
 事例調査エージェント（research-agent）の MCP サーバーです。デプロイ済みの research-agent サーバーに接続し、Claude から「事例調査をして」「結果を教えて」と依頼できるようにします。
 
 ## 必要なもの
@@ -9,11 +11,11 @@
 
 ## 簡単セットアップ（おすすめ）
 
-1. ターミナルで次を実行:
+1. ターミナルで次を実行（`@1.0.7` は [package.json](./package.json) の `version` に合わせる。省略時は npm の解決に任せることも可）:
    ```bash
-   npx research-agent-mcp-setup
+   npx -y research-agent-mcp@1.0.7 research-agent-mcp-setup
    ```
-2. 表示に従って **サーバー URL** を入力（例: `https://xxx.onrender.com`）。続けて **API キー**、**Client ID** を順に聞かれます（不要な項目は Enter）。`--url=...` だけ付けて実行した場合も、同様に **API キー → Client ID** の順で未入力分だけ聞かれます。
+2. 表示に従って **サーバー URL** を入力（例: `https://xxx.onrender.com`）。続けて **GET /health** でサーバー要件を確認し、必要なら **API キー**、**Client ID** を順に聞かれます。`--url=...` だけ付けて実行した場合も、未入力分だけ順に聞かれます。
 3. **Claude Desktop を再起動**する。
 
 これで設定完了です。Claude で「〇〇の事例を調査して」と試せます。
@@ -21,14 +23,14 @@
 ### 非対話で設定する場合
 
 ```bash
-npx research-agent-mcp-setup --url=https://your-app.onrender.com
+npx -y research-agent-mcp@1.0.7 research-agent-mcp-setup --url=https://your-app.onrender.com
 # API キーが必要な場合
-npx research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-key
+npx -y research-agent-mcp@1.0.7 research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-key
 # Client ID が必要な場合（サーバーで `RESEARCH_AGENT_REQUIRE_CLIENT_ID=true` で運用しているとき）
-npx research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-key --client-id=your-client-id
+npx -y research-agent-mcp@1.0.7 research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-key --client-id=your-client-id
 ```
 
-セットアップ時、デフォルトで **`GET /api/verify`** を呼び、サーバーに設定されている `RESEARCH_AGENT_API_KEY` と一致するか（および Client ID 必須時はヘッダが付くか）を確認します。オフラインなどで検証を飛ばす場合は `--skip-verify` を付けてください。
+セットアップ時、**`GET /health`** で API キー／Client ID の要否を確認し、続けてデフォルトで **`GET /api/verify`** を呼び、サーバーに設定されている `RESEARCH_AGENT_API_KEY` と一致するか（および Client ID 必須時はヘッダが付くか）を確認します。オフラインなどで検証を飛ばす場合は `--skip-verify` を付けてください。
 
 ## 手動で設定する場合
 
@@ -40,7 +42,7 @@ npx research-agent-mcp-setup --url=https://your-app.onrender.com --api-key=your-
   "mcpServers": {
     "research-agent": {
       "command": "npx",
-      "args": ["research-agent-mcp"],
+      "args": ["-y", "research-agent-mcp@1.0.7"],
       "env": {
         "RESEARCH_AGENT_SERVER_URL": "https://your-app.onrender.com",
         "RESEARCH_AGENT_API_KEY": "optional-if-server-requires",

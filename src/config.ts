@@ -27,10 +27,10 @@ const searchMaxRaw = toNumber(process.env.SEARCH_PER_CATEGORY_MAX, searchMaxDefa
 const searchMax = Math.max(searchMin, searchMaxRaw);
 
 export const config = {
-  dataDir: process.env.DATA_DIR ?? path.join(root, "data"),
-  outputDir: process.env.OUTPUT_DIR ?? path.join(root, "output"),
+  // ファイル保存先は固定（環境変数では切り替えない）
+  dataDir: path.join(root, "data"),
+  outputDir: path.join(root, "output"),
   appUrl: process.env.APP_URL ?? "http://localhost:3000",
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
   // Web 検索用 API キー（Serper.dev 推奨。なければ互換の SERPAPI_API_KEY も見る）
   serpApiKey: process.env.SERPER_API_KEY ?? process.env.SERPAPI_API_KEY ?? "",

@@ -33,7 +33,7 @@
 ### 2.3 含めないもの
 
 - ローカルモード（Inngest 直接送信、`DATA_DIR` 読み、Excel 生成）は **含めない**。利用者は「デプロイされたサーバー URL を指定する」前提にする。
-- 本家の `express` / `inngest` / `pg` / `anthropic` / `serpapi` 等は MCP クライアントでは不要。
+- 本家の `express` / `inngest` / `pg` / `openai` / `serpapi` 等は MCP クライアントでは不要。
 
 ---
 

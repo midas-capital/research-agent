@@ -168,11 +168,11 @@ docker run -d --name research-agent -p 3000:3000 \
 
 ### 簡単セットアップ（推奨）
 
-1. ターミナルで実行:
+1. ターミナルで実行（バージョンは [packages/mcp/package.json](../packages/mcp/package.json) の `version` と一致させる。現行 **1.0.7**）:
    ```bash
-   npx research-agent-mcp-setup
+   npx -y research-agent-mcp@1.0.7 research-agent-mcp-setup
    ```
-2. 表示に従って **サーバー URL**（例: `https://your-app.onrender.com`）を入力。API キーが必要なサーバーなら同じタイミングで入力。
+2. 表示に従って **サーバー URL**（例: `https://your-app.onrender.com`）を入力。続けて **API キー**・**Client ID** が必要なら順に入力（サーバー要件は `GET /health` で判定）。
 3. **Claude Desktop を再起動**する。
 
 リポジトリのクローンやパスの指定は不要です。
@@ -187,10 +187,11 @@ docker run -d --name research-agent -p 3000:3000 \
   "mcpServers": {
     "research-agent": {
       "command": "npx",
-      "args": ["research-agent-mcp"],
+      "args": ["-y", "research-agent-mcp@1.0.7"],
       "env": {
         "RESEARCH_AGENT_SERVER_URL": "https://your-app.onrender.com",
-        "RESEARCH_AGENT_API_KEY": "optional-if-server-requires"
+        "RESEARCH_AGENT_API_KEY": "optional-if-server-requires",
+        "RESEARCH_AGENT_CLIENT_ID": "optional-if-server-requires-client-id"
       }
     }
   }
@@ -200,6 +201,7 @@ docker run -d --name research-agent -p 3000:3000 \
 - **RESEARCH_AGENT_SERVER_URL**: デプロイしたサーバーの URL（`https://...`）のみ必須。  
   **INNGEST_EVENT_KEY は入れない**（イベント送信はサーバー側のみ）。
 - **RESEARCH_AGENT_API_KEY**: サーバーで API キーを要求している場合のみ同じ値を設定。
+- **RESEARCH_AGENT_CLIENT_ID**: サーバーで `RESEARCH_AGENT_REQUIRE_CLIENT_ID=true` のとき、割り当てた Client ID を設定。
 
 **注意**: `npx research-agent-mcp` を使う場合は Node.js が入っていればよく、リポジトリのクローンは不要です。開発用にリポジトリから直接動かす場合は `args`: `["tsx", "/path/to/research-agent/src/mcp-server.ts"]` と `RESEARCH_AGENT_SERVER_URL` を設定してください。
 

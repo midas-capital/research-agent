@@ -13,9 +13,5 @@ ENV NODE_ENV=production
 COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
-# 永続化用（ホストやボリュームでマウントする）
-RUN mkdir -p /app/data/runs /app/output
-ENV DATA_DIR=/app/data
-ENV OUTPUT_DIR=/app/output
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
