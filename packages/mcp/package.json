@@ -1,6 +1,6 @@
 {
   "name": "research-agent-mcp",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "MCP server for research-agent (case study search). Connect to a deployed research-agent server.",
   "type": "module",
   "main": "dist/mcp-server.js",

@@ -29,6 +29,37 @@ function question(rl: readline.Interface, prompt: string): Promise<string> {
   });
 }
 
+function secretQuestion(rl: readline.Interface, prompt: string): Promise<string> {
+  return new Promise((resolve) => {
+    const mutable = rl as readline.Interface & {
+      stdoutMuted?: boolean;
+      _writeToOutput?: (text: string) => void;
+      output?: NodeJS.WritableStream;
+    };
+    const originalWrite = mutable._writeToOutput?.bind(mutable);
+    mutable.stdoutMuted = true;
+    mutable._writeToOutput = function writeMasked(text: string): void {
+      if (!mutable.stdoutMuted) {
+        if (originalWrite) originalWrite(text);
+        else mutable.output?.write(text);
+        return;
+      }
+      // 改行やプロンプトのみ表示し、入力文字は隠す
+      if (text.startsWith(prompt) || text === "\n" || text === "\r\n") {
+        if (originalWrite) originalWrite(text);
+        else mutable.output?.write(text);
+      } else {
+        mutable.output?.write("*");
+      }
+    };
+    rl.question(prompt, (answer) => {
+      mutable.stdoutMuted = false;
+      if (originalWrite) mutable._writeToOutput = originalWrite;
+      resolve((answer ?? "").trim());
+    });
+  });
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -188,7 +219,7 @@ async function main(): Promise<void> {
     }
 
     if (shouldPromptApi) {
-      apiKey = await question(
+      apiKey = await secretQuestion(
         rl,
         "API キー（サーバーが要求する場合のみ。不要なら Enter）: "
       );
