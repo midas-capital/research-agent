@@ -8,6 +8,7 @@ import express from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import crypto from "node:crypto";
 import { serve } from "inngest/express";
 import { inngest } from "./inngest/client.js";
 import { caseStudySearch, caseStudySupplement } from "./inngest/functions/case-study.js";
@@ -31,6 +32,43 @@ function checkApiKey(req: express.Request, res: express.Response, next: express.
 function getClientId(req: express.Request): string | undefined {
   const h = req.header("x-client-id")?.trim();
   return h || undefined;
+}
+
+function toBase64Url(input: string): string {
+  return Buffer.from(input, "utf8").toString("base64url");
+}
+
+function signPayload(payloadB64: string): string {
+  return crypto.createHmac("sha256", apiKey).update(payloadB64).digest("base64url");
+}
+
+function makeDownloadToken(runId: string, clientId: string | undefined): string | null {
+  if (!apiKey) return null;
+  const payload = {
+    runId,
+    clientId: clientId ?? "",
+    exp: Date.now() + 10 * 60 * 1000, // 10 minutes
+  };
+  const payloadB64 = toBase64Url(JSON.stringify(payload));
+  const sig = signPayload(payloadB64);
+  return `${payloadB64}.${sig}`;
+}
+
+function verifyDownloadToken(token: string | undefined, runId: string): { ok: boolean; clientId?: string } {
+  if (!apiKey || !token) return { ok: false };
+  const [payloadB64, sig] = token.split(".");
+  if (!payloadB64 || !sig) return { ok: false };
+  const expected = signPayload(payloadB64);
+  if (sig !== expected) return { ok: false };
+  try {
+    const raw = Buffer.from(payloadB64, "base64url").toString("utf8");
+    const parsed = JSON.parse(raw) as { runId?: string; clientId?: string; exp?: number };
+    if (!parsed.runId || parsed.runId !== runId) return { ok: false };
+    if (!parsed.exp || Date.now() > parsed.exp) return { ok: false };
+    return { ok: true, clientId: parsed.clientId || undefined };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /** RESEARCH_AGENT_REQUIRE_CLIENT_ID=true のとき、保護ルートで X-Client-Id 必須 */
@@ -127,6 +165,21 @@ app.get("/api/runs/:runId", checkApiKey, checkClientIdRequired, async (req, res)
   res.json(state);
 });
 
+app.get("/api/runs/:runId/csv-link", checkApiKey, checkClientIdRequired, async (req, res) => {
+  const runId = String(req.params.runId ?? "");
+  const state = await readRunState(runId);
+  const reqClientId = getClientId(req);
+  if (!state || !state.cases || !canAccessRun(state, reqClientId)) {
+    return res.status(404).json({ error: "Run not found" });
+  }
+  const base = `${req.protocol}://${req.get("host")}`;
+  const token = makeDownloadToken(runId, reqClientId);
+  const url = token
+    ? `${base}/api/runs/${runId}/csv?downloadToken=${encodeURIComponent(token)}`
+    : `${base}/api/runs/${runId}/csv`;
+  res.json({ url, expiresInSec: token ? 600 : null });
+});
+
 app.get("/api/runs/:runId/excel", checkApiKey, checkClientIdRequired, async (req, res) => {
   const runId = String(req.params.runId ?? "");
   const state = await readRunState(runId);
@@ -146,8 +199,26 @@ app.get("/api/runs/:runId/excel", checkApiKey, checkClientIdRequired, async (req
 });
 
 // CSV をその場で生成して返す API（全事例シート相当）
-app.get("/api/runs/:runId/csv", checkApiKey, checkClientIdRequired, async (req, res) => {
+app.get("/api/runs/:runId/csv", async (req, res) => {
   const runId = String(req.params.runId ?? "");
+  const token =
+    typeof req.query.downloadToken === "string" ? req.query.downloadToken : undefined;
+  const verified = verifyDownloadToken(token, runId);
+
+  if (verified.ok) {
+    // downloadToken 経由のときは、内部的に clientId ヘッダ扱いでアクセス制御する
+    if (verified.clientId) req.headers["x-client-id"] = verified.clientId;
+    if (!verified.clientId) delete req.headers["x-client-id"];
+  }
+
+  if (!verified.ok && apiKey) {
+    const key = req.header("x-api-key") ?? req.header("authorization")?.replace(/^Bearer\s+/i, "");
+    if (key !== apiKey) return res.status(401).json({ error: "Invalid or missing API key" });
+    if (requireClientId && !getClientId(req)) {
+      return res.status(401).json({ error: "X-Client-Id header is required" });
+    }
+  }
+
   const state = await readRunState(runId);
   if (!state || !state.cases) return res.status(404).json({ error: "Run not found" });
   if (!canAccessRun(state, getClientId(req))) {

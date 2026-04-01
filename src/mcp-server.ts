@@ -18,6 +18,28 @@ const SERVER_URL = process.env.RESEARCH_AGENT_SERVER_URL ?? "";
 const SERVER_API_KEY = process.env.RESEARCH_AGENT_API_KEY ?? "";
 const SERVER_CLIENT_ID = (process.env.RESEARCH_AGENT_CLIENT_ID ?? "").trim();
 
+function buildCsvUrl(baseUrl: string, runId: string): string {
+  return new URL(`/api/runs/${runId}/csv`, baseUrl).toString();
+}
+
+async function fetchCsvDownloadUrl(baseUrl: string, runId: string): Promise<string> {
+  const fallback = buildCsvUrl(baseUrl, runId);
+  const res = await fetch(`${baseUrl}/api/runs/${runId}/csv-link`, {
+    headers: apiHeaders(),
+  }).catch(() => null);
+  if (!res || !res.ok) return fallback;
+  const data = (await res.json()) as { url?: string };
+  return data.url ?? fallback;
+}
+
+function csvDownloadGuide(csvUrl: string, runId: string): string {
+  return [
+    `CSV ダウンロード URL: ${csvUrl}`,
+    "（この URL はクリックすると CSV をダウンロードできます）",
+    `補足: curl でも取得できます。例: curl -fL "${csvUrl}" -o "cases-${runId}.csv"`,
+  ].join("\n");
+}
+
 function apiHeaders(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
   if (SERVER_API_KEY) h["X-API-Key"] = SERVER_API_KEY;
@@ -51,7 +73,7 @@ const server = new McpServer({
 const CLAUDE_INSTRUCTION = [
   "",
   "---",
-  "**アシスタントへの指示**: 上記の内容を、見出し・セクションの順序を変えずにそのままユーザーに提示してください。「データダウンロード」に CSV の URL が記載されている場合は、その URL をユーザーに案内し「ブラウザで開くと CSV がダウンロードできます」と伝えてください。URL の内容を取得したり読み込んだりしないでください。",
+  "**アシスタントへの指示**: 上記の内容を、見出し・セクションの順序を変えずにそのままユーザーに提示してください。「データダウンロード」に CSV の URL が記載されている場合は、その URL をユーザーに案内し「クリックすると CSV をダウンロードできます」と伝えてください。URL の内容を取得したり読み込んだりしないでください。",
 ].join("\n");
 
 server.registerTool(
@@ -250,11 +272,8 @@ server.registerTool(
     let fileDisplay = "";
     if (SERVER_URL) {
       const base = SERVER_URL.replace(/\/$/, "");
-      const csvUrl = `${base}/api/runs/${runId}/csv`;
-      fileDisplay = [
-        `CSV ダウンロード: ${csvUrl}`,
-        "（この URL はユーザーがブラウザで開くと CSV がダウンロードされます。URL の取得・読み込みは行わず、そのまま案内してください）",
-      ].join("\n");
+      const csvUrl = await fetchCsvDownloadUrl(base, runId);
+      fileDisplay = csvDownloadGuide(csvUrl, runId);
     } else {
       let excelPath = state.excelPath ?? "";
       if (!excelPath && cases.length > 0 && axes.length > 0) {
@@ -332,7 +351,7 @@ server.registerTool(
       "",
       "### データダウンロード",
       fileDisplay,
-      "- **ユーザーへの案内**: 上記の URL をそのままユーザーに伝え、「このリンクをブラウザで開くと CSV がダウンロードできます」と説明してください。URL の内容を取得したり読み込んだりしないでください。",
+      "- **ユーザーへの案内**: 上記の URL と取得方法（必要なヘッダ）をそのままユーザーに伝えてください。URL の内容を取得したり読み込んだりしないでください。",
       "",
       "### 軸別件数",
       ...(axes.length > 0
