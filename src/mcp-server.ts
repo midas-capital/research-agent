@@ -24,10 +24,27 @@ function buildCsvUrl(baseUrl: string, runId: string): string {
 
 async function fetchCsvDownloadUrl(baseUrl: string, runId: string): Promise<string> {
   const fallback = buildCsvUrl(baseUrl, runId);
-  const res = await fetch(`${baseUrl}/api/runs/${runId}/csv-link`, {
+  const url = `${baseUrl}/api/runs/${runId}/csv-link`;
+  const res = await fetch(url, {
     headers: apiHeaders(),
-  }).catch(() => null);
-  if (!res || !res.ok) return fallback;
+  }).catch((e) => {
+    console.error("[research-agent-mcp] fetch csv-link failed", {
+      runId,
+      url,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  });
+  if (!res || !res.ok) {
+    if (res) {
+      console.error("[research-agent-mcp] csv-link http not ok", {
+        runId,
+        status: res.status,
+        url,
+      });
+    }
+    return fallback;
+  }
   const data = (await res.json()) as { url?: string };
   return data.url ?? fallback;
 }
@@ -35,7 +52,8 @@ async function fetchCsvDownloadUrl(baseUrl: string, runId: string): Promise<stri
 function csvDownloadGuide(csvUrl: string, runId: string): string {
   return [
     `CSV ダウンロード URL: ${csvUrl}`,
-    "（この URL はクリックすると CSV をダウンロードできます）",
+    "（重要: この URL は短命で、有効期限は約 10 分です。表示されたらすぐブラウザで開いてダウンロード/保存してください）",
+    "（期限切れ/開けない場合は、同じ実行について「結果を教えて」と聞くと、新しい CSV URL が再発行されます）",
     `補足: curl でも取得できます。例: curl -fL "${csvUrl}" -o "cases-${runId}.csv"`,
   ].join("\n");
 }
@@ -48,19 +66,61 @@ function apiHeaders(): Record<string, string> {
 }
 
 async function fetchRunStateFromServer(runId: string): Promise<RunState | null> {
-  const res = await fetch(`${SERVER_URL.replace(/\/$/, "")}/api/runs/${runId}`, {
-    headers: apiHeaders(),
+  const url = `${SERVER_URL.replace(/\/$/, "")}/api/runs/${runId}`;
+  console.log("[research-agent-mcp] fetchRunStateFromServer", {
+    runId,
+    url,
+    hasApiKey: Boolean(SERVER_API_KEY),
+    hasClientId: Boolean(SERVER_CLIENT_ID),
   });
-  if (!res.ok) return null;
-  return (await res.json()) as RunState;
+  const res = await fetch(url, { headers: apiHeaders() });
+  if (!res.ok) {
+    let preview = "";
+    try {
+      preview = (await res.text()).slice(0, 500);
+    } catch {
+      // ignore
+    }
+    console.error("[research-agent-mcp] fetchRunStateFromServer failed", {
+      runId,
+      status: res.status,
+      url,
+      preview,
+    });
+    return null;
+  }
+  const data = (await res.json()) as RunState;
+  console.log("[research-agent-mcp] fetchRunStateFromServer ok", {
+    runId,
+    status: data.status,
+  });
+  return data;
 }
 
 async function fetchLatestRunIdFromServer(): Promise<string | null> {
-  const res = await fetch(`${SERVER_URL.replace(/\/$/, "")}/api/runs/latest`, {
-    headers: apiHeaders(),
+  const url = `${SERVER_URL.replace(/\/$/, "")}/api/runs/latest`;
+  console.log("[research-agent-mcp] fetchLatestRunIdFromServer", {
+    url,
+    hasApiKey: Boolean(SERVER_API_KEY),
+    hasClientId: Boolean(SERVER_CLIENT_ID),
   });
-  if (!res.ok) return null;
+  const res = await fetch(url, { headers: apiHeaders() });
+  if (!res.ok) {
+    let preview = "";
+    try {
+      preview = (await res.text()).slice(0, 500);
+    } catch {
+      // ignore
+    }
+    console.error("[research-agent-mcp] fetchLatestRunIdFromServer failed", {
+      status: res.status,
+      url,
+      preview,
+    });
+    return null;
+  }
   const data = (await res.json()) as { runId?: string };
+  console.log("[research-agent-mcp] fetchLatestRunIdFromServer ok", { runId: data.runId ?? null });
   return data.runId ?? null;
 }
 
@@ -73,7 +133,7 @@ const server = new McpServer({
 const CLAUDE_INSTRUCTION = [
   "",
   "---",
-  "**アシスタントへの指示**: 上記の内容を、見出し・セクションの順序を変えずにそのままユーザーに提示してください。「データダウンロード」に CSV の URL が記載されている場合は、その URL をユーザーに案内し「クリックすると CSV をダウンロードできます」と伝えてください。URL の内容を取得したり読み込んだりしないでください。",
+  "**アシスタントへの指示**: 上記の内容を、見出し・セクションの順序を変えずにそのままユーザーに提示してください。「データダウンロード」に CSV の URL が記載されている場合は、その URL を案内し、短命なので「表示されたらすぐブラウザで開いてダウンロード/保存」するよう促してください。期限切れ/開けない場合は「結果を教えて」で新しい CSV URL を再取得できる旨を伝えてください。URL の内容を取得したり読み込んだりしないでください。",
 ].join("\n");
 
 server.registerTool(
@@ -87,6 +147,13 @@ server.registerTool(
     },
   },
   async ({ query }) => {
+    const t0 = Date.now();
+    console.log("[research-agent-mcp] tool search_cases called", {
+      mode: SERVER_URL ? "remote" : "local",
+      query,
+      hasApiKey: Boolean(SERVER_API_KEY),
+      hasClientId: Boolean(SERVER_CLIENT_ID),
+    });
     // リモートモード: サーバーの /api/cases/search を叩いて Inngest ジョブを開始
     if (SERVER_URL) {
       const res = await fetch(`${SERVER_URL.replace(/\/$/, "")}/api/cases/search`, {
@@ -96,6 +163,12 @@ server.registerTool(
       });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
+        console.error("[research-agent-mcp] search_cases failed", {
+          status: res.status,
+          query,
+          preview: text.slice(0, 500),
+          elapsedMs: Date.now() - t0,
+        });
         return {
           content: [
             {
@@ -108,6 +181,10 @@ server.registerTool(
       }
       const data = (await res.json()) as { runId: string };
       const base = SERVER_URL.replace(/\/$/, "");
+      console.log("[research-agent-mcp] search_cases ok", {
+        runId: data.runId,
+        elapsedMs: Date.now() - t0,
+      });
       const text = [
         "## 事例調査を開始しました",
         "",
@@ -116,7 +193,7 @@ server.registerTool(
         `- runId: ${data.runId}`,
         "",
         "### データダウンロード",
-        "- 調査完了後、「結果を教えて」と依頼すると get_case_study_result で結果を取得できます。その結果に **CSV のダウンロード URL** が含まれます。ユーザーにはその URL をブラウザで開くよう案内してください。",
+        "- 調査完了後、「結果を教えて」と依頼すると get_case_study_result で結果を取得できます。その結果に **CSV のダウンロード URL** が含まれます。ユーザーには「表示されたらすぐブラウザで開いてダウンロード/保存」するよう案内してください（URL は短命で、有効期限は約 10 分です）。",
         "",
         "### このあとどうすればよいか",
         "- 1〜2分ほど待ってから、ユーザーが「結果を教えて」や「事例の結果は？」と依頼してください。",
@@ -142,6 +219,10 @@ server.registerTool(
     await inngest.send({
       name: "cases/search",
       data: { runId, query },
+    });
+    console.log("[research-agent-mcp] search_cases ok (local)", {
+      runId,
+      elapsedMs: Date.now() - t0,
     });
     const localText = [
       "## 事例調査を開始しました",
@@ -175,9 +256,17 @@ server.registerTool(
     },
   },
   async ({ runId: requestedRunId }) => {
+    const t0 = Date.now();
+    console.log("[research-agent-mcp] tool get_case_study_result called", {
+      mode: SERVER_URL ? "remote" : "local",
+      requestedRunId: requestedRunId ?? null,
+      hasApiKey: Boolean(SERVER_API_KEY),
+      hasClientId: Boolean(SERVER_CLIENT_ID),
+    });
     const runId =
       requestedRunId ??
       (SERVER_URL ? await fetchLatestRunIdFromServer() : await getLatestRunId());
+    console.log("[research-agent-mcp] resolved runId", { runId });
     if (!runId) {
       const text = [
         "## 事例調査の結果を取得できませんでした",
@@ -202,6 +291,10 @@ server.registerTool(
       ? await fetchRunStateFromServer(runId)
       : await readRunState(runId);
     if (!state) {
+      console.error("[research-agent-mcp] get_case_study_result state not found", {
+        runId,
+        elapsedMs: Date.now() - t0,
+      });
       const text = [
         "## 事例調査の結果を取得できませんでした",
         "",
@@ -223,6 +316,11 @@ server.registerTool(
     }
 
     if (state.status === "pending" || state.status === "running") {
+      console.log("[research-agent-mcp] get_case_study_result still running", {
+        runId,
+        status: state.status,
+        elapsedMs: Date.now() - t0,
+      });
       const text = [
         "## 事例調査はまだ実行中です",
         "",
@@ -245,6 +343,12 @@ server.registerTool(
     }
 
     if (state.status === "failed") {
+      console.error("[research-agent-mcp] get_case_study_result failed", {
+        runId,
+        status: state.status,
+        error: state.error ?? null,
+        elapsedMs: Date.now() - t0,
+      });
       const text = [
         "## 事例調査が失敗しました",
         "",
@@ -309,6 +413,13 @@ server.registerTool(
         CLAUDE_INSTRUCTION,
       ].join("\n");
 
+      console.log("[research-agent-mcp] get_case_study_result completed but 0 cases", {
+        runId,
+        status: state.status,
+        axes: axes.length,
+        elapsedMs: Date.now() - t0,
+      });
+
       return {
         content: [{ type: "text" as const, text }],
       };
@@ -351,7 +462,7 @@ server.registerTool(
       "",
       "### データダウンロード",
       fileDisplay,
-      "- **ユーザーへの案内**: 上記の URL と取得方法（必要なヘッダ）をそのままユーザーに伝えてください。URL の内容を取得したり読み込んだりしないでください。",
+      "- **ユーザーへの案内**: 上記の URL を、短命なので「表示されたらすぐブラウザで開いてダウンロード/保存」するよう案内してください。期限切れ/開けない場合は「結果を教えて」で新しい CSV URL を再取得できます。",
       "",
       "### 軸別件数",
       ...(axes.length > 0
@@ -365,6 +476,14 @@ server.registerTool(
       ...trendLines,
       CLAUDE_INSTRUCTION,
     ].join("\n");
+
+    console.log("[research-agent-mcp] get_case_study_result completed", {
+      runId,
+      status: state.status,
+      cases: cases.length,
+      axes: axes.length,
+      elapsedMs: Date.now() - t0,
+    });
 
     return {
       content: [{ type: "text" as const, text: summaryText }],
