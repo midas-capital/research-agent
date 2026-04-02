@@ -129,7 +129,13 @@
 6. **Disk**（`DATABASE_URL` 未設定時）: Persistent Disk を追加し、`/app/data` にマウント（`DATA_DIR=/app/data`、`OUTPUT_DIR=/app/data/output` など）。
 7. 発行された URL を **APP_URL** と Inngest の App URL に設定
 
-**GitHub に push したら自動デプロイ**にしたい場合は [RENDER_AUTO_DEPLOY.md](./RENDER_AUTO_DEPLOY.md) を参照（既存サービスでは **Settings → Build & Deploy → Auto-Deploy: Yes** が中心）。リポジトリ直下の `render.yaml` は Blueprint 用の例です。
+**GitHub の push で Render を自動デプロイする（Auto-Deploy）**
+- Web Service → **Settings** → **Build & Deploy**
+- **Branch**: `main`
+- **Auto-Deploy**: `Yes`（On commit / Automatic と表示される場合あり）
+- 動作確認: `Events / Logs` に新しい **Deploy** が出るか確認（出ない場合は Manual Deploy で latest が反映されるか確認）
+
+※ `render.yaml` は Blueprint 作成時の例です（既存サービスの Auto-Deploy 設定はダッシュボード側です）。
 
 ---
 
