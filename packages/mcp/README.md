@@ -13,7 +13,7 @@
 
 1. ターミナルで次を実行（**常に最新版を使用**）:
    ```bash
-   npx -y --package=research-agent-mcp@latest -- research-agent-mcp-setup --url=https://research-agent-ehck.onrender.com
+   npx -y --package=research-agent-mcp@latest -- research-agent-mcp-setup --url=https://research-agent-wpx8.onrender.com
    ```
 2. 表示に従って **サーバー URL** を入力（例: `https://xxx.onrender.com`）。続けて **GET /health** でサーバー要件を確認し、必要なら **API キー**、**Client ID** を順に聞かれます。`--url=...` だけ付けて実行した場合も、未入力分だけ順に聞かれます。
 3. **Claude Desktop を再起動**する。
